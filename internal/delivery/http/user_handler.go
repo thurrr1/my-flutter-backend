@@ -44,14 +44,16 @@ func (h *UserHandler) Login(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Input tidak valid"})
 	}
 
-	// Panggil usecase login
-	token, err := h.usecase.Login(input.NIP, input.Password)
+	// Tangkap token dan nama dari usecase
+	token, name, err := h.usecase.Login(input.NIP, input.Password)
 	if err != nil {
 		return c.Status(401).JSON(fiber.Map{"error": "NIP atau Password salah"})
 	}
 
+	// Tambahkan field "name" di respon JSON
 	return c.JSON(fiber.Map{
 		"message": "Login Berhasil!",
 		"token":   token,
+		"name":    name, // Data nama user sekarang muncul di sini
 	})
 }

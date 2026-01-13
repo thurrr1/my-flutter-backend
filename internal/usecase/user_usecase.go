@@ -2,11 +2,12 @@ package usecase
 
 import (
 	"fmt"
-	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
 	"my-flutter-backend/internal/model"
 	"my-flutter-backend/internal/repository"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var jwtSecret = []byte("rahasia-negara-sangat-kuat")
@@ -35,19 +36,19 @@ func (u *UserUsecase) Register(name, nip, password string) error {
 	return u.repo.Create(user)
 }
 
-func (u *UserUsecase) Login(nip, password string) (string, error) {
+func (u *UserUsecase) Login(nip, password string) (string, string, error) {
 	// 1. Cari user berdasarkan NIP
 	user, err := u.repo.GetByNIP(nip)
 	if err != nil {
 		fmt.Println("Bcrypt Error:", err)
-		return "", err // User tidak ditemukan
+		return "", "", err
 	}
 
 	// 2. Bandingkan Password (Input vs Hash di DB)
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {
 		fmt.Println("Bcrypt Error:", err)
-		return "", err // Password salah
+		return "", "", err
 	}
 
 	// 3. Jika benar, buat Token JWT
@@ -60,8 +61,8 @@ func (u *UserUsecase) Login(nip, password string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	t, err := token.SignedString(jwtSecret)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return t, nil
+	return t, user.Name, nil
 }
