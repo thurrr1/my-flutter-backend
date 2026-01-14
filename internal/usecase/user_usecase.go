@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"errors"
 	"fmt"
 	"my-flutter-backend/internal/model"
 	"my-flutter-backend/internal/repository"
@@ -36,8 +37,7 @@ func (u *UserUsecase) Register(name, nip, password string) error {
 	return u.repo.Create(user)
 }
 
-func (u *UserUsecase) Login(nip, password string) (string, string, error) {
-	// 1. Cari user berdasarkan NIP
+func (u *UserUsecase) Login(nip, password, uuid, brand, series, fcmToken, adsID string) (string, string, error) {
 	user, err := u.repo.GetByNIP(nip)
 	if err != nil {
 		fmt.Println("Bcrypt Error:", err)
@@ -49,6 +49,34 @@ func (u *UserUsecase) Login(nip, password string) (string, string, error) {
 	if err != nil {
 		fmt.Println("Bcrypt Error:", err)
 		return "", "", err
+	}
+
+	var deviceExists bool
+	for _, d := range user.Devices {
+		if d.UUID == uuid {
+			deviceExists = true
+			break
+		}
+	}
+
+	// 3. Logika Binding
+	if !deviceExists {
+		// Jika belum ada device terdaftar sama sekali (First Login)
+		if len(user.Devices) == 0 {
+			newDevice := model.Device{
+				UUID:          uuid,
+				Brand:         brand,
+				Series:        series,
+				FirebaseToken: fcmToken,
+				AdsID:         adsID,
+				UserID:        user.ID,
+			}
+			// Simpan device baru (nanti buat fungsi di repo)
+			u.repo.AddDevice(newDevice)
+		} else {
+			// Jika sudah ada device lain yang terdaftar
+			return "", "", errors.New("Akun terikat di perangkat lain!")
+		}
 	}
 
 	// 3. Jika benar, buat Token JWT

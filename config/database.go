@@ -24,6 +24,8 @@ func ConnectDB() {
 
 	// Auto Migration: Membuat tabel otomatis berdasarkan struct di folder model
 	db.AutoMigrate(&model.User{})
+	db.AutoMigrate(&model.Device{})
+
 
 	DB = db
 }

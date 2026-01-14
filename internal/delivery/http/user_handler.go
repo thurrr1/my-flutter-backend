@@ -36,24 +36,37 @@ func (h *UserHandler) Register(c *fiber.Ctx) error {
 
 func (h *UserHandler) Login(c *fiber.Ctx) error {
 	var input struct {
-		NIP      string `json:"nip"`
-		Password string `json:"password"`
+		NIP           string `json:"nip"`
+		Password      string `json:"password"`
+		UUID          string `json:"uuid"`           // Dari Flutter
+		Brand         string `json:"brand"`          // Dari Flutter
+		Series        string `json:"series"`         // Dari Flutter
+		FirebaseToken string `json:"firebase_token"` // Dari Flutter
+		AdsID         string `json:"ads_id"`         // Dari Flutter
 	}
 
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Input tidak valid"})
 	}
 
-	// Tangkap token dan nama dari usecase
-	token, name, err := h.usecase.Login(input.NIP, input.Password)
+	// Masukkan semua parameter ke usecase
+	token, name, err := h.usecase.Login(
+		input.NIP,
+		input.Password,
+		input.UUID,
+		input.Brand,
+		input.Series,
+		input.FirebaseToken,
+		input.AdsID,
+	)
+
 	if err != nil {
-		return c.Status(401).JSON(fiber.Map{"error": "NIP atau Password salah"})
+		return c.Status(401).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Tambahkan field "name" di respon JSON
 	return c.JSON(fiber.Map{
 		"message": "Login Berhasil!",
 		"token":   token,
-		"name":    name, // Data nama user sekarang muncul di sini
+		"name":    name,
 	})
 }
