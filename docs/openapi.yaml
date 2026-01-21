@@ -1,0 +1,607 @@
+openapi: 3.0.0
+info:
+  title: ASN E-Absensi API
+  description: Dokumentasi API untuk Backend Absensi ASN (Go Fiber)
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local Development Server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
+paths:
+  # =======================
+  # AUTH & PROFILE
+  # =======================
+  /api/login:
+    post:
+      summary: Login User
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nip:
+                  type: string
+                  example: "123456789"
+                password:
+                  type: string
+                  example: "admin123"
+                device_id:
+                  type: string
+                  example: "uuid-device-123"
+                brand:
+                  type: string
+                  example: "Samsung"
+                series:
+                  type: string
+                  example: "Galaxy S23"
+      responses:
+        200:
+          description: Login Berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  token:
+                    type: string
+                  data:
+                    type: object
+
+  /api/asn/profile:
+    get:
+      summary: Get Profile Saya
+      tags: [Auth]
+      responses:
+        200:
+          description: Data Profile
+    put:
+      summary: Update Profile Saya
+      tags: [Auth]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                no_hp:
+                  type: string
+                foto:
+                  type: string
+                  description: Base64 string
+      responses:
+        200:
+          description: Berhasil update
+
+  /api/asn/password:
+    put:
+      summary: Ganti Password
+      tags: [Auth]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                old_password:
+                  type: string
+                new_password:
+                  type: string
+      responses:
+        200:
+          description: Password berhasil diubah
+
+  # =======================
+  # KEHADIRAN (ABSENSI)
+  # =======================
+  /api/kehadiran/checkin:
+    post:
+      summary: Absen Masuk
+      tags: [Kehadiran]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                latitude:
+                  type: number
+                  example: -0.9416
+                longitude:
+                  type: number
+                  example: 100.3700
+      responses:
+        200:
+          description: Checkin Berhasil
+          content:
+            application/json:
+              example:
+                message: "Check-in berhasil"
+                status: "HADIR"
+                waktu: "07:55:00"
+                jarak: 10.5
+
+  /api/kehadiran/checkout:
+    post:
+      summary: Absen Pulang
+      tags: [Kehadiran]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+      responses:
+        200:
+          description: Checkout Berhasil
+
+  /api/kehadiran/riwayat:
+    get:
+      summary: Riwayat Absensi Saya
+      tags: [Kehadiran]
+      responses:
+        200:
+          description: List Riwayat
+
+  /api/kehadiran/rekap:
+    get:
+      summary: Rekap Absensi Bulanan
+      tags: [Kehadiran]
+      parameters:
+        - in: query
+          name: bulan
+          schema:
+            type: string
+            example: "02"
+          required: true
+        - in: query
+          name: tahun
+          schema:
+            type: string
+            example: "2026"
+          required: true
+      responses:
+        200:
+          description: Statistik Kehadiran
+          content:
+            application/json:
+              example:
+                message: "Rekap berhasil"
+                data:
+                  hadir: 20
+                  terlambat: 2
+                  izin: 1
+                  cuti: 0
+                  detail: []
+
+  # =======================
+  # PERIZINAN (CUTI/SAKIT)
+  # =======================
+  /api/perizinan/cuti:
+    post:
+      summary: Ajukan Izin atau Cuti
+      tags: [Perizinan]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tipe:
+                  type: string
+                  enum: [IZIN, CUTI]
+                jenis_izin:
+                  type: string
+                  example: "SAKIT"
+                tanggal_mulai:
+                  type: string
+                  example: "2026-02-01"
+                tanggal_selesai:
+                  type: string
+                  example: "2026-02-03"
+                keterangan:
+                  type: string
+      responses:
+        200:
+          description: Berhasil diajukan
+
+  /api/perizinan/riwayat:
+    get:
+      summary: Riwayat Pengajuan Saya
+      tags: [Perizinan]
+      responses:
+        200:
+          description: List Pengajuan
+
+  /api/perizinan/bawahan:
+    get:
+      summary: (Atasan) Lihat Pengajuan Bawahan
+      tags: [Perizinan]
+      responses:
+        200:
+          description: List Pengajuan Bawahan
+
+  /api/perizinan/approval:
+    post:
+      summary: (Atasan) Approve/Reject Izin
+      tags: [Perizinan]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                perizinan_id:
+                  type: integer
+                status:
+                  type: string
+                  enum: [DISETUJUI, DITOLAK]
+      responses:
+        200:
+          description: Status diperbarui
+
+  # =======================
+  # KOREKSI ABSEN
+  # =======================
+  /api/koreksi/ajukan:
+    post:
+      summary: Ajukan Koreksi Absen
+      tags: [Koreksi]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tanggal_kehadiran:
+                  type: string
+                  example: "2026-02-10"
+                tipe_koreksi:
+                  type: string
+                  enum: [TELAT, PULANG_CEPAT, LUAR_RADIUS]
+                alasan:
+                  type: string
+      responses:
+        200:
+          description: Berhasil diajukan
+
+  /api/koreksi/riwayat:
+    get:
+      summary: Riwayat Koreksi Saya
+      tags: [Koreksi]
+      responses:
+        200:
+          description: List Koreksi
+
+  /api/koreksi/bawahan:
+    get:
+      summary: (Atasan) Lihat Koreksi Bawahan
+      tags: [Koreksi]
+      responses:
+        200:
+          description: List Koreksi Bawahan
+
+  /api/koreksi/approval:
+    post:
+      summary: (Atasan) Approve/Reject Koreksi
+      tags: [Koreksi]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                koreksi_id:
+                  type: integer
+                status:
+                  type: string
+                  enum: [DISETUJUI, DITOLAK]
+      responses:
+        200:
+          description: Status diperbarui
+
+  # =======================
+  # BANNER
+  # =======================
+  /api/banner:
+    get:
+      summary: Get All Active Banner
+      tags: [Banner]
+      responses:
+        200:
+          description: List Banner
+
+  # =======================
+  # ADMIN PANEL
+  # =======================
+  /api/admin/dashboard:
+    get:
+      summary: Dashboard Statistik
+      tags: [Admin]
+      responses:
+        200:
+          description: Statistik Harian
+
+  /api/admin/asn:
+    get:
+      summary: Get All Pegawai
+      tags: [Admin]
+      responses:
+        200:
+          description: List Pegawai
+
+  /api/admin/asn/{id}/device:
+    delete:
+      summary: Reset Device ID Pegawai
+      tags: [Admin]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Device berhasil direset
+
+  /api/admin/organisasi:
+    get:
+      summary: Get Info Organisasi
+      tags: [Admin]
+      responses:
+        200:
+          description: Info Organisasi
+    put:
+      summary: Update Info Organisasi
+      tags: [Admin]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_organisasi:
+                  type: string
+      responses:
+        200:
+          description: Berhasil update
+
+  /api/admin/organisasi/lokasi/{id}:
+    put:
+      summary: Update Lokasi Kantor
+      tags: [Admin]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_lokasi:
+                  type: string
+                alamat:
+                  type: string
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+                radius_meter:
+                  type: number
+      responses:
+        200:
+          description: Lokasi berhasil diupdate
+
+  /api/admin/shift:
+    get:
+      summary: Get All Shift
+      tags: [Admin]
+      responses:
+        200:
+          description: List Shift
+    post:
+      summary: Create Shift
+      tags: [Admin]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_shift:
+                  type: string
+                jam_masuk:
+                  type: string
+                  example: "08:00"
+                jam_pulang:
+                  type: string
+                  example: "16:00"
+      responses:
+        200:
+          description: Shift dibuat
+
+  /api/admin/shift/{id}:
+    put:
+      summary: Update Shift
+      tags: [Admin]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_shift:
+                  type: string
+                jam_masuk:
+                  type: string
+                jam_pulang:
+                  type: string
+      responses:
+        200:
+          description: Shift diupdate
+    delete:
+      summary: Delete Shift
+      tags: [Admin]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Shift dihapus
+
+  /api/admin/jadwal:
+    post:
+      summary: Create Jadwal Manual (Per Hari)
+      tags: [Admin]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                asn_id:
+                  type: integer
+                shift_id:
+                  type: integer
+                tanggal:
+                  type: string
+                  example: "2026-02-01"
+      responses:
+        200:
+          description: Jadwal dibuat
+
+  /api/admin/jadwal/generate:
+    post:
+      summary: Generate Jadwal Bulanan
+      tags: [Admin]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                asn_id:
+                  type: integer
+                shift_id:
+                  type: integer
+                bulan:
+                  type: integer
+                  example: 2
+                tahun:
+                  type: integer
+                  example: 2026
+                ignore_weekend:
+                  type: boolean
+                  example: true
+      responses:
+        200:
+          description: Jadwal berhasil digenerate
+
+  /api/admin/hari-libur:
+    get:
+      summary: Get All Hari Libur
+      tags: [Admin]
+      responses:
+        200:
+          description: List Hari Libur
+    post:
+      summary: Create Hari Libur
+      tags: [Admin]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tanggal:
+                  type: string
+                  example: "2026-08-17"
+                keterangan:
+                  type: string
+                  example: "HUT RI"
+      responses:
+        200:
+          description: Hari libur dibuat
+
+  /api/admin/hari-libur/{id}:
+    delete:
+      summary: Delete Hari Libur
+      tags: [Admin]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Dihapus
+
+  /api/admin/banner:
+    post:
+      summary: Create Banner
+      tags: [Admin]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                foto:
+                  type: string
+                  description: Base64
+      responses:
+        200:
+          description: Banner dibuat
+
+  /api/admin/banner/{id}:
+    delete:
+      summary: Delete Banner
+      tags: [Admin]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Dihapus

@@ -2,7 +2,8 @@ package config
 
 import (
 	"fmt"
-	"my-flutter-backend/internal/model" // Sesuaikan dengan nama module di go.mod mu
+	"my-flutter-backend/internal/database"
+	"my-flutter-backend/internal/model"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -23,9 +24,13 @@ func ConnectDB() {
 	fmt.Println("Koneksi Database Berhasil!")
 
 	// Auto Migration: Membuat tabel otomatis berdasarkan struct di folder model
-	db.AutoMigrate(&model.User{})
-	db.AutoMigrate(&model.Device{})
-
+	db.AutoMigrate(
+		&model.Organisasi{}, &model.Lokasi{}, &model.Role{}, &model.Permission{},
+		&model.ASN{}, &model.Kehadiran{}, &model.PerizinanCuti{},
+		&model.PerizinanKehadiran{}, &model.Jadwal{}, &model.Shift{}, &model.HariLibur{},
+		&model.Device{}, &model.Banner{},
+	)
+	database.SeedAll(db)
 
 	DB = db
 }

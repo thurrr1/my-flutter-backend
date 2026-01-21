@@ -2,40 +2,32 @@ package main
 
 import (
 	"my-flutter-backend/config"
-	"my-flutter-backend/internal/delivery/http"
-	"my-flutter-backend/internal/repository"
-	"my-flutter-backend/internal/usecase"
+	"my-flutter-backend/internal/routes"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
 func main() {
-	// 1. Koneksi Database
 	config.ConnectDB()
 
-	// 2. Setup Layer Clean Architecture
-	// Kita buat dari yang paling dalam (Repository -> Usecase -> Handler)
-	userRepo := repository.NewUserRepository(config.DB)
-	userUsecase := usecase.NewUserUsecase(userRepo)
-	userHandler := http.NewUserHandler(userUsecase)
-
-	// 3. Inisialisasi Fiber
 	app := fiber.New()
-	app.Use(cors.New())
 
-	// 4. Routing
-	// Grouping route agar rapi
-	api := app.Group("/api")
+	// Middleware Global
+	app.Use(cors.New())   // Agar API bisa diakses dari domain/port lain
+	app.Use(logger.New()) // Agar log request muncul di terminal (Debugging)
 
-	// Route untuk Register
-	api.Post("/register", userHandler.Register)
-	api.Post("/login", userHandler.Login)
-
-	// Test Route
-	app.Get("/", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"message": "Server Go Clean Arch Jalan!"})
-	})
+	routes.SetupASNRoutes(app, config.DB)
+	routes.SetupKehadiranRoutes(app, config.DB)
+	routes.SetupPerizinanRoutes(app, config.DB)
+	routes.SetupJadwalRoutes(app, config.DB)
+	routes.SetupPerizinanKehadiranRoutes(app, config.DB)
+	routes.SetupBannerRoutes(app, config.DB)
+	routes.SetupDashboardRoutes(app, config.DB)
+	routes.SetupShiftRoutes(app, config.DB)
+	routes.SetupOrganisasiRoutes(app, config.DB)
+	routes.SetupHariLiburRoutes(app, config.DB)
 
 	app.Listen(":3000")
 }
