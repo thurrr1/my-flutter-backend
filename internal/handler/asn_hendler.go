@@ -91,10 +91,11 @@ func (h *ASNHandler) Login(c *fiber.Ctx) error {
 		"message": "Login berhasil",
 		"token":   token, // <--- Token ini yang nanti dicopy ke Bruno
 		"data": fiber.Map{
-			"nip":     asn.NIP,
-			"nama":    asn.Nama,
-			"role":    asn.Role.NamaRole,
-			"jabatan": asn.Jabatan,
+			"nip":        asn.NIP,
+			"nama":       asn.Nama,
+			"role":       asn.Role.NamaRole,
+			"jabatan":    asn.Jabatan,
+			"organisasi": asn.Organisasi.NamaOrganisasi, // Tambahan untuk Dashboard
 		},
 	})
 }
@@ -191,11 +192,23 @@ func (h *ASNHandler) ChangePassword(c *fiber.Ctx) error {
 }
 
 func (h *ASNHandler) GetAll(c *fiber.Ctx) error {
+	// Ambil Organisasi ID dari user yang login (Admin)
+	orgID := uint(c.Locals("organisasi_id").(float64))
+
 	asns, err := h.repo.GetAll()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data pegawai"})
 	}
-	return c.JSON(fiber.Map{"data": asns})
+
+	// Filter: Hanya tampilkan ASN yang satu organisasi dengan Admin
+	var filteredASNs []model.ASN
+	for _, a := range asns {
+		if a.OrganisasiID == orgID {
+			filteredASNs = append(filteredASNs, a)
+		}
+	}
+
+	return c.JSON(fiber.Map{"data": filteredASNs})
 }
 
 func (h *ASNHandler) ResetDevice(c *fiber.Ctx) error {

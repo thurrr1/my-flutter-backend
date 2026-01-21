@@ -333,6 +333,23 @@ paths:
       responses:
         200:
           description: List Banner
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        title:
+                          type: string
+                        foto:
+                          type: string
+                          description: Full URL Image (http://.../uploads/...)
+                        is_active:
+                          type: boolean
 
   # =======================
   # ADMIN PANEL

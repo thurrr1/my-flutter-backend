@@ -18,6 +18,9 @@ func main() {
 	app.Use(cors.New())   // Agar API bisa diakses dari domain/port lain
 	app.Use(logger.New()) // Agar log request muncul di terminal (Debugging)
 
+	// Serve Static Files (Agar gambar bisa dibuka via http://localhost:3000/uploads/...)
+	app.Static("/uploads", "./uploads")
+
 	routes.SetupASNRoutes(app, config.DB)
 	routes.SetupKehadiranRoutes(app, config.DB)
 	routes.SetupPerizinanRoutes(app, config.DB)

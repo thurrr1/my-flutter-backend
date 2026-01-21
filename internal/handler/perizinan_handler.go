@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"fmt"
 	"my-flutter-backend/internal/model"
 	"my-flutter-backend/internal/repository"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -34,6 +37,23 @@ func (h *PerizinanHandler) AjukanIzin(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
 	}
 
+	// Handle File Upload (Bukti Izin)
+	file, errFile := c.FormFile("file_bukti")
+	pathFile := ""
+	if errFile == nil {
+		// Buat folder jika belum ada
+		uploadDir := "./uploads/perizinan"
+		if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+			os.MkdirAll(uploadDir, 0755)
+		}
+
+		// Simpan file: uploads/perizinan/asnID_timestamp_namafile
+		filename := fmt.Sprintf("%d_%d_%s", asnID, time.Now().Unix(), filepath.Base(file.Filename))
+		pathFile = fmt.Sprintf("uploads/perizinan/%s", filename)
+
+		c.SaveFile(file, pathFile)
+	}
+
 	// Ambil data ASN untuk mendapatkan NIP Atasan
 	asn, err := h.asnRepo.FindByID(asnID)
 	nipAtasan := ""
@@ -50,6 +70,7 @@ func (h *PerizinanHandler) AjukanIzin(c *fiber.Ctx) error {
 		TanggalSelesai: req.TanggalSelesai,
 		Alasan:         req.Keterangan,
 		Status:         "MENUNGGU",
+		PathFile:       pathFile,
 	}
 
 	if err := h.repo.CreateCuti(&izin); err != nil {
@@ -106,6 +127,15 @@ func (h *PerizinanHandler) ProcessApproval(c *fiber.Ctx) error {
 	izin, err := h.repo.GetByID(req.PerizinanID)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Data perizinan tidak ditemukan"})
+	}
+
+	// Validasi: Pastikan yang approve adalah Atasan yang sesuai
+	nipUser := c.Locals("nip").(string)
+	roleUser := c.Locals("role").(string)
+
+	// Kita izinkan Admin untuk override (jaga-jaga), tapi utamanya harus Atasan yang bersangkutan
+	if izin.NIPAtasan != nipUser && roleUser != "Admin" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Anda bukan atasan dari pegawai ini"})
 	}
 
 	// Update Status

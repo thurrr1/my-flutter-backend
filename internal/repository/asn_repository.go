@@ -59,7 +59,9 @@ func (r *asnRepository) GetAll() ([]model.ASN, error) {
 }
 
 func (r *asnRepository) ResetDevice(asnID uint) error {
-	return r.db.Where("asn_id = ?", asnID).Delete(&model.Device{}).Error
+	// Gunakan Unscoped() untuk Hard Delete (Hapus Permanen)
+	// Ini PENTING agar UUID device tersebut benar-benar hilang dan bisa didaftarkan ulang
+	return r.db.Unscoped().Where("asn_id = ?", asnID).Delete(&model.Device{}).Error
 }
 
 func (r *asnRepository) Count() (int64, error) {

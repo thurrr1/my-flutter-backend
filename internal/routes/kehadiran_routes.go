@@ -21,5 +21,6 @@ func SetupKehadiranRoutes(app *fiber.App, db *gorm.DB) {
 	api.Post("/checkin", hdl.CheckIn)
 	api.Post("/checkout", hdl.CheckOut)
 	api.Get("/riwayat", hdl.GetHistory)
+	api.Get("/status-hari-ini", hdl.GetTodayStatus)
 	api.Get("/rekap", hdl.GetRekap)
 }

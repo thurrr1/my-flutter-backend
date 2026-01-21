@@ -21,6 +21,13 @@ func (h *BannerHandler) GetAll(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil banner"})
 	}
+
+	// Modifikasi Foto agar menjadi Full URL
+	baseURL := c.BaseURL() // Otomatis mendeteksi http://localhost:3000 atau IP
+	for i := range banners {
+		banners[i].Foto = baseURL + "/" + banners[i].Foto
+	}
+
 	return c.JSON(fiber.Map{"data": banners})
 }
 

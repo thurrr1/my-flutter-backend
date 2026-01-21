@@ -239,6 +239,27 @@ func (h *KehadiranHandler) GetRekap(c *fiber.Ctx) error {
 	})
 }
 
+func (h *KehadiranHandler) GetTodayStatus(c *fiber.Ctx) error {
+	asnID := uint(c.Locals("user_id").(float64))
+
+	kehadiran, err := h.repo.GetTodayAttendance(asnID)
+	
+	// Jika belum absen (record tidak ditemukan), return status khusus tapi bukan error 500
+	if err != nil {
+		return c.JSON(fiber.Map{
+			"message": "Belum ada data kehadiran hari ini",
+			"status":  "BELUM_ABSEN", 
+			"data":    nil,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Data kehadiran ditemukan",
+		"status":  kehadiran.StatusMasuk, // HADIR, TERLAMBAT, IZIN, CUTI
+		"data":    kehadiran,
+	})
+}
+
 // Rumus Haversine untuk menghitung jarak dua titik koordinat (dalam meter)
 func calculateDistance(lat1, lon1, lat2, lon2 float64) float64 {
 	const R = 6371000 // Radius bumi dalam meter

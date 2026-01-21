@@ -1,8 +1,12 @@
 package handler
 
 import (
+	"fmt"
 	"my-flutter-backend/internal/model"
 	"my-flutter-backend/internal/repository"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -17,18 +21,30 @@ func NewPerizinanKehadiranHandler(repo repository.PerizinanKehadiranRepository, 
 	return &PerizinanKehadiranHandler{repo: repo, kehadiranRepo: kRepo, asnRepo: asnRepo}
 }
 
-type AjukanKoreksiRequest struct {
-	TanggalKehadiran string `json:"tanggal_kehadiran"`
-	TipeKoreksi      string `json:"tipe_koreksi"` // TELAT, PULANG_CEPAT, LUAR_RADIUS
-	Alasan           string `json:"alasan"`
-}
-
 func (h *PerizinanKehadiranHandler) AjukanKoreksi(c *fiber.Ctx) error {
 	asnID := uint(c.Locals("user_id").(float64))
 
-	var req AjukanKoreksiRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	tanggal := c.FormValue("tanggal_kehadiran")
+	tipe := c.FormValue("tipe_koreksi")
+	alasan := c.FormValue("alasan")
+
+	if tanggal == "" || tipe == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Tanggal dan Tipe Koreksi wajib diisi"})
+	}
+
+	// Handle File Upload (Bukti Koreksi)
+	file, errFile := c.FormFile("file_bukti")
+	pathFile := ""
+	if errFile == nil {
+		uploadDir := "./uploads/perizinan_kehadiran"
+		if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+			os.MkdirAll(uploadDir, 0755)
+		}
+
+		filename := fmt.Sprintf("%d_%d_%s", asnID, time.Now().Unix(), filepath.Base(file.Filename))
+		pathFile = fmt.Sprintf("uploads/perizinan_kehadiran/%s", filename)
+
+		c.SaveFile(file, pathFile)
 	}
 
 	// Ambil NIP Atasan
@@ -41,10 +57,11 @@ func (h *PerizinanKehadiranHandler) AjukanKoreksi(c *fiber.Ctx) error {
 	koreksi := model.PerizinanKehadiran{
 		ASNID:            asnID,
 		NIPAtasan:        nipAtasan,
-		TanggalKehadiran: req.TanggalKehadiran,
-		TipeKoreksi:      req.TipeKoreksi,
-		Alasan:           req.Alasan,
+		TanggalKehadiran: tanggal,
+		TipeKoreksi:      tipe,
+		Alasan:           alasan,
 		Status:           "MENUNGGU",
+		PathFile:         pathFile,
 	}
 
 	if err := h.repo.Create(&koreksi); err != nil {
@@ -97,11 +114,28 @@ func (h *PerizinanKehadiranHandler) ProcessApproval(c *fiber.Ctx) error {
 	}
 
 	// Jika DISETUJUI, update data kehadiran (masukkan ID Koreksi)
+	// Jika DISETUJUI, update data kehadiran
 	if req.Status == "DISETUJUI" {
 		kehadiran, err := h.kehadiranRepo.GetByDate(koreksi.ASNID, koreksi.TanggalKehadiran)
 		if err == nil {
+			// KASUS 1: Data Absen Ada (Misal status TERLAMBAT ingin dikoreksi jadi HADIR)
 			kehadiran.PerizinanKehadiranID = &koreksi.ID
+			kehadiran.StatusMasuk = "HADIR" // Koreksi dianggap valid, ubah jadi HADIR
 			h.kehadiranRepo.Update(kehadiran)
+		} else {
+			// KASUS 2: Data Absen Tidak Ada (Misal LUPA ABSEN / ALPHA)
+			// Kita buatkan data kehadiran baru
+			tgl, _ := time.Parse("2006-01-02", koreksi.TanggalKehadiran)
+			newKehadiran := model.Kehadiran{
+				ASNID:                koreksi.ASNID,
+				Tanggal:              koreksi.TanggalKehadiran,
+				Tahun:                tgl.Format("2006"),
+				Bulan:                tgl.Format("01"),
+				StatusMasuk:          "HADIR", // Dianggap Hadir karena koreksi disetujui
+				StatusPulang:         "PULANG",
+				PerizinanKehadiranID: &koreksi.ID,
+			}
+			h.kehadiranRepo.Create(newKehadiran)
 		}
 	}
 
