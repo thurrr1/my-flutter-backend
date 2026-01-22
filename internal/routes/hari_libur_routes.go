@@ -17,5 +17,6 @@ func SetupHariLiburRoutes(app *fiber.App, db *gorm.DB) {
 
 	api.Get("/", hdl.GetAll)
 	api.Post("/", hdl.Create)
+	api.Put("/:id", hdl.Update)
 	api.Delete("/:id", hdl.Delete)
 }

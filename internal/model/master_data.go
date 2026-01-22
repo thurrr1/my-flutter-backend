@@ -12,6 +12,7 @@ type Jadwal struct {
 
 	// Relasi
 	Shift Shift `gorm:"foreignKey:ShiftID" json:"shift"`
+	ASN   ASN   `gorm:"foreignKey:ASNID" json:"asn"`
 }
 
 type Shift struct {
@@ -41,4 +42,21 @@ type HariLibur struct {
 	gorm.Model
 	Tanggal    string `json:"tanggal" gorm:"unique;not null"` // Format YYYY-MM-DD
 	Keterangan string `json:"keterangan"`
+}
+
+type Organisasi struct {
+	gorm.Model
+	NamaOrganisasi string   `json:"nama_organisasi"`
+	EmailAdmin     string   `json:"email_admin"`
+	Lokasis        []Lokasi `json:"lokasis" gorm:"foreignKey:OrganisasiID"` // Relasi One-to-Many
+}
+
+type Lokasi struct {
+	gorm.Model
+	OrganisasiID uint    `json:"organisasi_id"`
+	NamaLokasi   string  `json:"nama_lokasi"`
+	Alamat       string  `json:"alamat"`
+	Latitude     float64 `json:"latitude"`
+	Longitude    float64 `json:"longitude"`
+	RadiusMeter  float64 `json:"radius_meter"`
 }

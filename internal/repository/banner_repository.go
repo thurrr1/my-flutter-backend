@@ -31,5 +31,6 @@ func (r *bannerRepository) Create(banner *model.Banner) error {
 }
 
 func (r *bannerRepository) Delete(id uint) error {
-	return r.db.Delete(&model.Banner{}, id).Error
+	// Jangan hapus data (Delete), tapi update is_active jadi false
+	return r.db.Model(&model.Banner{}).Where("id = ?", id).Update("is_active", false).Error
 }

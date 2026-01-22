@@ -211,6 +211,84 @@ func (h *ASNHandler) GetAll(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": filteredASNs})
 }
 
+func (h *ASNHandler) GetASNDetail(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+
+	asn, err := h.repo.FindByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pegawai tidak ditemukan"})
+	}
+	return c.JSON(fiber.Map{"data": asn})
+}
+
+// --- FITUR BARU: CRUD ADMIN ---
+
+type CreateASNRequest struct {
+	Nama     string `json:"nama"`
+	NIP      string `json:"nip"`
+	Password string `json:"password"`
+	Jabatan  string `json:"jabatan"`
+	Bidang   string `json:"bidang"`
+	RoleID   uint   `json:"role_id"`
+}
+
+func (h *ASNHandler) CreateASN(c *fiber.Ctx) error {
+	orgID := uint(c.Locals("organisasi_id").(float64))
+	var req CreateASNRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+
+	asn := model.ASN{
+		Nama:         req.Nama,
+		NIP:          req.NIP,
+		Password:     string(hashedPassword),
+		Jabatan:      req.Jabatan,
+		Bidang:       req.Bidang,
+		RoleID:       req.RoleID,
+		OrganisasiID: orgID,
+		IsActive:     true,
+	}
+
+	if err := h.repo.Create(&asn); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menambah pegawai"})
+	}
+	return c.JSON(fiber.Map{"message": "Pegawai berhasil ditambahkan", "data": asn})
+}
+
+func (h *ASNHandler) UpdateASN(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+	var req model.ASN
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	asn, err := h.repo.FindByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pegawai tidak ditemukan"})
+	}
+
+	asn.Nama = req.Nama
+	asn.Jabatan = req.Jabatan
+	asn.Bidang = req.Bidang
+	// NIP dan Password biasanya butuh endpoint khusus atau validasi ketat
+
+	if err := h.repo.Update(asn); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal update pegawai"})
+	}
+	return c.JSON(fiber.Map{"message": "Data pegawai berhasil diupdate"})
+}
+
+func (h *ASNHandler) DeleteASN(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+	if err := h.repo.Delete(uint(id)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menghapus pegawai"})
+	}
+	return c.JSON(fiber.Map{"message": "Pegawai berhasil dihapus"})
+}
+
 func (h *ASNHandler) ResetDevice(c *fiber.Ctx) error {
 	id, _ := strconv.Atoi(c.Params("id"))
 	if err := h.repo.ResetDevice(uint(id)); err != nil {

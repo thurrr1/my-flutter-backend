@@ -11,7 +11,8 @@ import (
 
 func SetupShiftRoutes(app *fiber.App, db *gorm.DB) {
 	repo := repository.NewShiftRepository(db)
-	hdl := handler.NewShiftHandler(repo)
+	jadwalRepo := repository.NewJadwalRepository(db) // Tambah ini
+	hdl := handler.NewShiftHandler(repo, jadwalRepo)
 
 	api := app.Group("/api/admin/shift", middleware.Auth, middleware.Role("Admin"))
 	api.Get("/", hdl.GetAll)

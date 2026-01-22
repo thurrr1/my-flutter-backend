@@ -31,6 +31,7 @@ func main() {
 	routes.SetupShiftRoutes(app, config.DB)
 	routes.SetupOrganisasiRoutes(app, config.DB)
 	routes.SetupHariLiburRoutes(app, config.DB)
+	routes.SetupRoleRoutes(app, config.DB)
 
 	app.Listen(":3000")
 }

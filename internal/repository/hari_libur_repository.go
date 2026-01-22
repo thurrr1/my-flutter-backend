@@ -11,6 +11,8 @@ type HariLiburRepository interface {
 	Create(libur *model.HariLibur) error
 	Delete(id uint) error
 	IsHoliday(date string) (bool, error)
+	GetByID(id uint) (*model.HariLibur, error)
+	Update(libur *model.HariLibur) error
 }
 
 type hariLiburRepository struct {
@@ -42,4 +44,14 @@ func (r *hariLiburRepository) IsHoliday(date string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *hariLiburRepository) GetByID(id uint) (*model.HariLibur, error) {
+	var libur model.HariLibur
+	err := r.db.First(&libur, id).Error
+	return &libur, err
+}
+
+func (r *hariLiburRepository) Update(libur *model.HariLibur) error {
+	return r.db.Save(libur).Error
 }

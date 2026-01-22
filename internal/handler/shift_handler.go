@@ -9,11 +9,12 @@ import (
 )
 
 type ShiftHandler struct {
-	repo repository.ShiftRepository
+	repo       repository.ShiftRepository
+	jadwalRepo repository.JadwalRepository
 }
 
-func NewShiftHandler(repo repository.ShiftRepository) *ShiftHandler {
-	return &ShiftHandler{repo: repo}
+func NewShiftHandler(repo repository.ShiftRepository, jadwalRepo repository.JadwalRepository) *ShiftHandler {
+	return &ShiftHandler{repo: repo, jadwalRepo: jadwalRepo}
 }
 
 func (h *ShiftHandler) GetAll(c *fiber.Ctx) error {
@@ -60,6 +61,13 @@ func (h *ShiftHandler) Update(c *fiber.Ctx) error {
 
 func (h *ShiftHandler) Delete(c *fiber.Ctx) error {
 	id, _ := strconv.Atoi(c.Params("id"))
+
+	// Validasi: Cek apakah shift sedang digunakan di jadwal
+	count, _ := h.jadwalRepo.CountByShiftID(uint(id))
+	if count > 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Shift tidak bisa dihapus karena sedang digunakan dalam jadwal"})
+	}
+
 	if err := h.repo.Delete(uint(id)); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menghapus shift"})
 	}

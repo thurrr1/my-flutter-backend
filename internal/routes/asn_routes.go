@@ -25,5 +25,9 @@ func SetupASNRoutes(app *fiber.App, db *gorm.DB) {
 	// Admin Routes (Kelola Pegawai)
 	admin := app.Group("/api/admin/asn", middleware.Auth, middleware.Role("Admin"))
 	admin.Get("/", hdl.GetAll)
+	admin.Get("/:id", hdl.GetASNDetail) // Route baru untuk detail
+	admin.Post("/", hdl.CreateASN)
+	admin.Put("/:id", hdl.UpdateASN)
+	admin.Delete("/:id", hdl.DeleteASN)
 	admin.Delete("/:id/device", hdl.ResetDevice)
 }

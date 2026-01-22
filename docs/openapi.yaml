@@ -166,6 +166,27 @@ paths:
         200:
           description: List Riwayat
 
+  /api/kehadiran/status-hari-ini:
+    get:
+      summary: Cek Status Kehadiran Hari Ini
+      tags: [Kehadiran]
+      responses:
+        200:
+          description: Data Status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status:
+                    type: string
+                    enum: [BELUM_ABSEN, HADIR, TERLAMBAT, IZIN, CUTI]
+                    description: "Jika BELUM_ABSEN -> Tombol Checkin Aktif. Jika lainnya -> Tombol Mati."
+                  data:
+                    type: object
+
   /api/kehadiran/rekap:
     get:
       summary: Rekap Absensi Bulanan
@@ -205,8 +226,9 @@ paths:
       summary: Ajukan Izin atau Cuti
       tags: [Perizinan]
       requestBody:
+        required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -215,7 +237,6 @@ paths:
                   enum: [IZIN, CUTI]
                 jenis_izin:
                   type: string
-                  example: "SAKIT"
                 tanggal_mulai:
                   type: string
                   example: "2026-02-01"
@@ -224,6 +245,10 @@ paths:
                   example: "2026-02-03"
                 keterangan:
                   type: string
+                file_bukti:
+                  type: string
+                  format: binary
+                  description: "File gambar/dokumen bukti (Opsional)"
       responses:
         200:
           description: Berhasil diajukan
@@ -271,8 +296,9 @@ paths:
       summary: Ajukan Koreksi Absen
       tags: [Koreksi]
       requestBody:
+        required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -284,6 +310,10 @@ paths:
                   enum: [TELAT, PULANG_CEPAT, LUAR_RADIUS]
                 alasan:
                   type: string
+                file_bukti:
+                  type: string
+                  format: binary
+                  description: "File bukti pendukung (Opsional)"
       responses:
         200:
           description: Berhasil diajukan
@@ -350,275 +380,3 @@ paths:
                           description: Full URL Image (http://.../uploads/...)
                         is_active:
                           type: boolean
-
-  # =======================
-  # ADMIN PANEL
-  # =======================
-  /api/admin/dashboard:
-    get:
-      summary: Dashboard Statistik
-      tags: [Admin]
-      responses:
-        200:
-          description: Statistik Harian
-
-  /api/admin/asn:
-    get:
-      summary: Get All Pegawai
-      tags: [Admin]
-      responses:
-        200:
-          description: List Pegawai
-
-  /api/admin/asn/{id}/device:
-    delete:
-      summary: Reset Device ID Pegawai
-      tags: [Admin]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      responses:
-        200:
-          description: Device berhasil direset
-
-  /api/admin/organisasi:
-    get:
-      summary: Get Info Organisasi
-      tags: [Admin]
-      responses:
-        200:
-          description: Info Organisasi
-    put:
-      summary: Update Info Organisasi
-      tags: [Admin]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                nama_organisasi:
-                  type: string
-      responses:
-        200:
-          description: Berhasil update
-
-  /api/admin/organisasi/lokasi/{id}:
-    put:
-      summary: Update Lokasi Kantor
-      tags: [Admin]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                nama_lokasi:
-                  type: string
-                alamat:
-                  type: string
-                latitude:
-                  type: number
-                longitude:
-                  type: number
-                radius_meter:
-                  type: number
-      responses:
-        200:
-          description: Lokasi berhasil diupdate
-
-  /api/admin/shift:
-    get:
-      summary: Get All Shift
-      tags: [Admin]
-      responses:
-        200:
-          description: List Shift
-    post:
-      summary: Create Shift
-      tags: [Admin]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                nama_shift:
-                  type: string
-                jam_masuk:
-                  type: string
-                  example: "08:00"
-                jam_pulang:
-                  type: string
-                  example: "16:00"
-      responses:
-        200:
-          description: Shift dibuat
-
-  /api/admin/shift/{id}:
-    put:
-      summary: Update Shift
-      tags: [Admin]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                nama_shift:
-                  type: string
-                jam_masuk:
-                  type: string
-                jam_pulang:
-                  type: string
-      responses:
-        200:
-          description: Shift diupdate
-    delete:
-      summary: Delete Shift
-      tags: [Admin]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      responses:
-        200:
-          description: Shift dihapus
-
-  /api/admin/jadwal:
-    post:
-      summary: Create Jadwal Manual (Per Hari)
-      tags: [Admin]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                asn_id:
-                  type: integer
-                shift_id:
-                  type: integer
-                tanggal:
-                  type: string
-                  example: "2026-02-01"
-      responses:
-        200:
-          description: Jadwal dibuat
-
-  /api/admin/jadwal/generate:
-    post:
-      summary: Generate Jadwal Bulanan
-      tags: [Admin]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                asn_id:
-                  type: integer
-                shift_id:
-                  type: integer
-                bulan:
-                  type: integer
-                  example: 2
-                tahun:
-                  type: integer
-                  example: 2026
-                ignore_weekend:
-                  type: boolean
-                  example: true
-      responses:
-        200:
-          description: Jadwal berhasil digenerate
-
-  /api/admin/hari-libur:
-    get:
-      summary: Get All Hari Libur
-      tags: [Admin]
-      responses:
-        200:
-          description: List Hari Libur
-    post:
-      summary: Create Hari Libur
-      tags: [Admin]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                tanggal:
-                  type: string
-                  example: "2026-08-17"
-                keterangan:
-                  type: string
-                  example: "HUT RI"
-      responses:
-        200:
-          description: Hari libur dibuat
-
-  /api/admin/hari-libur/{id}:
-    delete:
-      summary: Delete Hari Libur
-      tags: [Admin]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      responses:
-        200:
-          description: Dihapus
-
-  /api/admin/banner:
-    post:
-      summary: Create Banner
-      tags: [Admin]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                foto:
-                  type: string
-                  description: Base64
-      responses:
-        200:
-          description: Banner dibuat
-
-  /api/admin/banner/{id}:
-    delete:
-      summary: Delete Banner
-      tags: [Admin]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      responses:
-        200:
-          description: Dihapus

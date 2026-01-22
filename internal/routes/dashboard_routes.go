@@ -10,9 +10,8 @@ import (
 )
 
 func SetupDashboardRoutes(app *fiber.App, db *gorm.DB) {
-	asnRepo := repository.NewASNRepository(db)
-	kehadiranRepo := repository.NewKehadiranRepository(db)
-	hdl := handler.NewDashboardHandler(asnRepo, kehadiranRepo)
+	repo := repository.NewDashboardRepository(db)
+	hdl := handler.NewDashboardHandler(repo)
 
 	api := app.Group("/api/admin/dashboard", middleware.Auth, middleware.Role("Admin"))
 	api.Get("/", hdl.GetStats)

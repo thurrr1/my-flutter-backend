@@ -10,7 +10,9 @@ type ASNRepository interface {
 	FindByNIP(nip string) (*model.ASN, error)
 	GetLokasiByOrganisasiID(orgID uint) (*model.Lokasi, error)
 	FindByID(id uint) (*model.ASN, error)
+	Create(asn *model.ASN) error
 	Update(asn *model.ASN) error
+	Delete(id uint) error
 	AddDevice(device *model.Device) error
 	GetAll() ([]model.ASN, error)
 	ResetDevice(asnID uint) error
@@ -44,8 +46,16 @@ func (r *asnRepository) FindByID(id uint) (*model.ASN, error) {
 	return &asn, err
 }
 
+func (r *asnRepository) Create(asn *model.ASN) error {
+	return r.db.Create(asn).Error
+}
+
 func (r *asnRepository) Update(asn *model.ASN) error {
 	return r.db.Save(asn).Error
+}
+
+func (r *asnRepository) Delete(id uint) error {
+	return r.db.Delete(&model.ASN{}, id).Error
 }
 
 func (r *asnRepository) AddDevice(device *model.Device) error {

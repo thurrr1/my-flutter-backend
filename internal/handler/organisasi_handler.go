@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"my-flutter-backend/internal/model"
 	"my-flutter-backend/internal/repository"
 	"strconv"
 
@@ -16,7 +17,8 @@ func NewOrganisasiHandler(repo repository.OrganisasiRepository) *OrganisasiHandl
 }
 
 func (h *OrganisasiHandler) GetInfo(c *fiber.Ctx) error {
-	org, err := h.repo.GetFirst()
+	orgID := uint(c.Locals("organisasi_id").(float64))
+	org, err := h.repo.GetByID(orgID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data organisasi"})
 	}
@@ -77,4 +79,37 @@ func (h *OrganisasiHandler) UpdateLokasi(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"message": "Lokasi berhasil diupdate", "data": lokasi})
+}
+
+func (h *OrganisasiHandler) AddLokasi(c *fiber.Ctx) error {
+	orgID := uint(c.Locals("organisasi_id").(float64))
+	var req UpdateLokasiRequest // Gunakan struct yang sama
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	lokasi := model.Lokasi{
+		OrganisasiID: orgID,
+		NamaLokasi:   req.NamaLokasi,
+		Alamat:       req.Alamat,
+		Latitude:     req.Latitude,
+		Longitude:    req.Longitude,
+		RadiusMeter:  req.RadiusMeter,
+	}
+
+	if err := h.repo.CreateLokasi(&lokasi); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menambah lokasi"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Lokasi berhasil ditambahkan", "data": lokasi})
+}
+
+func (h *OrganisasiHandler) DeleteLokasi(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+
+	if err := h.repo.DeleteLokasi(uint(id)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menghapus lokasi"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Lokasi berhasil dihapus"})
 }

@@ -1,0 +1,459 @@
+openapi: 3.0.0
+info:
+  title: Admin API Documentation
+  description: Dokumentasi API khusus untuk Web Admin Panel (Laravel)
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local Development Server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
+
+paths:
+  # --- DASHBOARD ---
+  /api/admin/dashboard:
+    get:
+      summary: Get Dashboard Statistics
+      tags: [Dashboard]
+      responses:
+        '200':
+          description: Statistik kehadiran hari ini
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      total_pegawai: { type: integer }
+                      hari_ini:
+                        type: object
+                        properties:
+                          HADIR: { type: integer }
+                          TERLAMBAT: { type: integer }
+                      bulan_ini:
+                        type: object
+                        properties:
+                          HADIR: { type: integer }
+                          TERLAMBAT: { type: integer }
+
+  # --- PEGAWAI (ASN) ---
+  /api/admin/asn:
+    get:
+      summary: Get All Pegawai (Filtered by Admin Organization)
+      tags: [Pegawai]
+      responses:
+        '200':
+          description: List pegawai
+    post:
+      summary: Create New Pegawai
+      tags: [Pegawai]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama: { type: string }
+                nip: { type: string }
+                password: { type: string }
+                jabatan: { type: string }
+                bidang: { type: string }
+                role_id: { type: integer }
+      responses:
+        '200':
+          description: Pegawai created
+
+  /api/admin/asn/{id}:
+    get:
+      summary: Get Pegawai Detail
+      tags: [Pegawai]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Detail pegawai
+    put:
+      summary: Update Pegawai
+      tags: [Pegawai]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama: { type: string }
+                jabatan: { type: string }
+                bidang: { type: string }
+      responses:
+        '200':
+          description: Pegawai updated
+    delete:
+      summary: Delete Pegawai
+      tags: [Pegawai]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Pegawai deleted
+
+  /api/admin/asn/{id}/device:
+    delete:
+      summary: Reset Device ID Pegawai
+      tags: [Pegawai]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Device reset successful
+
+  # --- ROLES ---
+  /api/admin/roles:
+    get:
+      summary: Get All Roles (For Dropdown)
+      tags: [Master Data]
+      responses:
+        '200':
+          description: List roles
+
+  # --- JADWAL ---
+  /api/admin/jadwal:
+    get:
+      summary: Get Jadwal Harian (For Calendar View)
+      tags: [Jadwal]
+      parameters:
+        - in: query
+          name: tanggal
+          required: true
+          schema: { type: string, format: date, example: "2024-10-25" }
+      responses:
+        '200':
+          description: List jadwal pada tanggal tersebut
+    post:
+      summary: Create Single Jadwal Manual
+      tags: [Jadwal]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                asn_id: { type: integer }
+                shift_id: { type: integer }
+                tanggal: { type: string, format: date }
+      responses:
+        '200':
+          description: Jadwal created
+
+  /api/admin/jadwal/generate:
+    post:
+      summary: Generate Jadwal Bulanan (Bulk)
+      tags: [Jadwal]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                asn_ids: 
+                  type: array
+                  items: { type: integer }
+                shift_id: { type: integer }
+                bulan: { type: integer }
+                tahun: { type: integer }
+                ignore_weekend: { type: boolean }
+      responses:
+        '200':
+          description: Jadwal generated
+
+  /api/admin/jadwal/{id}:
+    put:
+      summary: Update Shift pada Jadwal
+      tags: [Jadwal]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shift_id: { type: integer }
+      responses:
+        '200':
+          description: Jadwal updated
+    delete:
+      summary: Delete Jadwal
+      tags: [Jadwal]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Jadwal deleted
+
+  # --- SHIFT ---
+  /api/admin/shift:
+    get:
+      summary: Get All Shifts
+      tags: [Master Data]
+      responses:
+        '200':
+          description: List shifts
+    post:
+      summary: Create Shift
+      tags: [Master Data]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_shift: { type: string }
+                jam_masuk: { type: string, example: "08:00" }
+                jam_pulang: { type: string, example: "16:00" }
+      responses:
+        '200':
+          description: Shift created
+
+  /api/admin/shift/{id}:
+    put:
+      summary: Update Shift
+      tags: [Master Data]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_shift: { type: string }
+                jam_masuk: { type: string }
+                jam_pulang: { type: string }
+      responses:
+        '200':
+          description: Shift updated
+    delete:
+      summary: Delete Shift
+      tags: [Master Data]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Shift deleted
+
+  # --- ORGANISASI ---
+  /api/admin/organisasi:
+    get:
+      summary: Get Organisasi Info
+      tags: [Organisasi]
+      responses:
+        '200':
+          description: Detail organisasi & lokasi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      nama_organisasi: { type: string }
+                      lokasis:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: integer }
+                            nama_lokasi: { type: string }
+                            latitude: { type: number }
+                            longitude: { type: number }
+    put:
+      summary: Update Nama Organisasi
+      tags: [Organisasi]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_organisasi: { type: string }
+      responses:
+        '200':
+          description: Updated
+
+  /api/admin/organisasi/lokasi:
+    post:
+      summary: Add New Lokasi Kantor
+      tags: [Organisasi]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_lokasi: { type: string }
+                alamat: { type: string }
+                latitude: { type: number }
+                longitude: { type: number }
+                radius_meter: { type: number }
+      responses:
+        '200':
+          description: Lokasi created
+
+  /api/admin/organisasi/lokasi/{id}:
+    put:
+      summary: Update Lokasi Kantor (Koordinat)
+      tags: [Organisasi]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_lokasi: { type: string }
+                alamat: { type: string }
+                latitude: { type: number }
+                longitude: { type: number }
+                radius_meter: { type: number }
+      responses:
+        '200':
+          description: Lokasi updated
+    delete:
+      summary: Delete Lokasi Kantor
+      tags: [Organisasi]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Lokasi deleted
+
+  # --- HARI LIBUR ---
+  /api/admin/hari-libur:
+    get:
+      summary: Get All Hari Libur
+      tags: [Master Data]
+      responses:
+        '200':
+          description: List hari libur
+    post:
+      summary: Create Hari Libur
+      tags: [Master Data]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tanggal: { type: string, format: date }
+                keterangan: { type: string }
+      responses:
+        '200':
+          description: Created
+
+  /api/admin/hari-libur/{id}:
+    put:
+      summary: Update Hari Libur
+      tags: [Master Data]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tanggal: { type: string, format: date }
+                keterangan: { type: string }
+      responses:
+        '200':
+          description: Updated
+    delete:
+      summary: Delete Hari Libur
+      tags: [Master Data]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Deleted
+
+  # --- BANNER ---
+  /api/admin/banner:
+    post:
+      summary: Create Banner (Upload)
+      tags: [Master Data]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                foto: { type: string, format: binary }
+      responses:
+        '200':
+          description: Banner created
+
+  /api/admin/banner/{id}:
+    delete:
+      summary: Deactivate Banner (Soft Delete)
+      tags: [Master Data]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Banner deactivated
