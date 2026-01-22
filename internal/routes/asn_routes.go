@@ -15,6 +15,7 @@ func SetupASNRoutes(app *fiber.App, db *gorm.DB) {
 
 	// Auth Routes
 	app.Post("/api/login", hdl.Login)
+	app.Post("/api/refresh-token", hdl.RefreshToken)
 
 	// Profile Routes (Protected)
 	api := app.Group("/api/asn", middleware.Auth)

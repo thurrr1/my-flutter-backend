@@ -47,11 +47,11 @@ func (h *JadwalHandler) CreateJadwal(c *fiber.Ctx) error {
 }
 
 type GenerateJadwalRequest struct {
-	ASNIDs        []uint `json:"asn_ids"` // UBAH: Array of ID (Checkbox)
-	ShiftID       uint   `json:"shift_id"`
-	Bulan         int    `json:"bulan"`
-	Tahun         int    `json:"tahun"`
-	IgnoreWeekend bool   `json:"ignore_weekend"`
+	ASNIDs  []uint `json:"asn_ids"` // UBAH: Array of ID (Checkbox)
+	ShiftID uint   `json:"shift_id"`
+	Bulan   int    `json:"bulan"`
+	Tahun   int    `json:"tahun"`
+	Days    []int  `json:"days"` // 0=Minggu, 1=Senin, ..., 6=Sabtu
 }
 
 func (h *JadwalHandler) GenerateJadwalBulanan(c *fiber.Ctx) error {
@@ -71,9 +71,16 @@ func (h *JadwalHandler) GenerateJadwalBulanan(c *fiber.Ctx) error {
 	for _, asnID := range req.ASNIDs {
 		// Loop dari tanggal 1 sampai akhir bulan
 		for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
-			// Skip Sabtu (Saturday=6) dan Minggu (Sunday=0) jika diminta
-			if req.IgnoreWeekend && (d.Weekday() == time.Saturday || d.Weekday() == time.Sunday) {
-				continue
+			// 1. Cek apakah hari ini (d.Weekday) ada di daftar hari yang dipilih user
+			isSelectedDay := false
+			for _, day := range req.Days {
+				if int(d.Weekday()) == day {
+					isSelectedDay = true
+					break
+				}
+			}
+			if !isSelectedDay {
+				continue // Skip jika hari tidak dicentang
 			}
 
 			// Cek apakah tanggal ini adalah Hari Libur Nasional
@@ -103,6 +110,36 @@ func (h *JadwalHandler) GenerateJadwalBulanan(c *fiber.Ctx) error {
 	})
 }
 
+type GenerateJadwalHarianRequest struct {
+	ASNIDs  []uint `json:"asn_ids"`
+	ShiftID uint   `json:"shift_id"`
+	Tanggal string `json:"tanggal"` // YYYY-MM-DD
+}
+
+func (h *JadwalHandler) GenerateJadwalHarian(c *fiber.Ctx) error {
+	var req GenerateJadwalHarianRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	var listJadwal []model.Jadwal
+	for _, asnID := range req.ASNIDs {
+		jadwal := model.Jadwal{
+			ASNID:   asnID,
+			ShiftID: req.ShiftID,
+			Tanggal: req.Tanggal,
+		}
+		listJadwal = append(listJadwal, jadwal)
+	}
+
+	if len(listJadwal) > 0 {
+		if err := h.repo.CreateMany(listJadwal); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal membuat jadwal harian"})
+		}
+	}
+	return c.JSON(fiber.Map{"message": "Berhasil membuat jadwal harian"})
+}
+
 // GET /api/admin/jadwal?tanggal=2024-10-25
 func (h *JadwalHandler) GetJadwalHarian(c *fiber.Ctx) error {
 	orgID := uint(c.Locals("organisasi_id").(float64))
@@ -118,6 +155,15 @@ func (h *JadwalHandler) GetJadwalHarian(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"data": jadwals})
+}
+
+func (h *JadwalHandler) GetJadwalDetail(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+	jadwal, err := h.repo.GetByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Jadwal tidak ditemukan"})
+	}
+	return c.JSON(fiber.Map{"data": jadwal})
 }
 
 type UpdateJadwalRequest struct {
@@ -147,4 +193,15 @@ func (h *JadwalHandler) DeleteJadwal(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menghapus jadwal"})
 	}
 	return c.JSON(fiber.Map{"message": "Jadwal berhasil dihapus"})
+}
+
+func (h *JadwalHandler) DeleteJadwalByDate(c *fiber.Ctx) error {
+	orgID := uint(c.Locals("organisasi_id").(float64))
+	tanggal := c.Query("tanggal")
+	if tanggal == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Tanggal wajib diisi"})
+	}
+
+	h.repo.DeleteByDate(tanggal, orgID)
+	return c.JSON(fiber.Map{"message": "Semua jadwal pada tanggal tersebut berhasil dihapus"})
 }

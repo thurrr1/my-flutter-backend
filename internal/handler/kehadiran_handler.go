@@ -241,15 +241,32 @@ func (h *KehadiranHandler) GetRekap(c *fiber.Ctx) error {
 
 func (h *KehadiranHandler) GetTodayStatus(c *fiber.Ctx) error {
 	asnID := uint(c.Locals("user_id").(float64))
+	today := time.Now().Format("2006-01-02")
 
+	// 1. Ambil Jadwal Hari Ini (PENTING: Agar aplikasi tahu shift terbaru secara realtime)
+	jadwal, errJadwal := h.jadwalRepo.GetByASNAndDate(asnID, today)
+	var jadwalInfo interface{} = nil
+
+	if errJadwal == nil && jadwal != nil {
+		jadwalInfo = fiber.Map{
+			"id":         jadwal.ID,
+			"shift_id":   jadwal.ShiftID,
+			"nama_shift": jadwal.Shift.NamaShift,
+			"jam_masuk":  jadwal.Shift.JamMasuk,
+			"jam_pulang": jadwal.Shift.JamPulang,
+		}
+	}
+
+	// 2. Cek Status Kehadiran
 	kehadiran, err := h.repo.GetTodayAttendance(asnID)
-	
+
 	// Jika belum absen (record tidak ditemukan), return status khusus tapi bukan error 500
 	if err != nil {
 		return c.JSON(fiber.Map{
 			"message": "Belum ada data kehadiran hari ini",
-			"status":  "BELUM_ABSEN", 
+			"status":  "BELUM_ABSEN",
 			"data":    nil,
+			"jadwal":  jadwalInfo,
 		})
 	}
 
@@ -257,6 +274,7 @@ func (h *KehadiranHandler) GetTodayStatus(c *fiber.Ctx) error {
 		"message": "Data kehadiran ditemukan",
 		"status":  kehadiran.StatusMasuk, // HADIR, TERLAMBAT, IZIN, CUTI
 		"data":    kehadiran,
+		"jadwal":  jadwalInfo,
 	})
 }
 

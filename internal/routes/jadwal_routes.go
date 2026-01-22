@@ -17,8 +17,11 @@ func SetupJadwalRoutes(app *fiber.App, db *gorm.DB) {
 	api := app.Group("/api/admin", middleware.Auth, middleware.Role("Admin"))
 
 	api.Get("/jadwal", hdl.GetJadwalHarian) // Lihat per tanggal
+	api.Get("/jadwal/:id", hdl.GetJadwalDetail) // Detail untuk Edit
 	api.Post("/jadwal", hdl.CreateJadwal)   // Buat manual satu
 	api.Post("/jadwal/generate", hdl.GenerateJadwalBulanan)
+	api.Post("/jadwal/generate-daily", hdl.GenerateJadwalHarian) // Bulk Harian
 	api.Put("/jadwal/:id", hdl.UpdateJadwal)    // Edit Shift
 	api.Delete("/jadwal/:id", hdl.DeleteJadwal) // Hapus
+	api.Delete("/jadwal/date/bulk", hdl.DeleteJadwalByDate) // Hapus Massal per Tanggal
 }

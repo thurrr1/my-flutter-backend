@@ -13,11 +13,10 @@ func SetupBannerRoutes(app *fiber.App, db *gorm.DB) {
 	repo := repository.NewBannerRepository(db)
 	hdl := handler.NewBannerHandler(repo)
 
-	// Public / User Route
-	app.Get("/api/banner", middleware.Auth, hdl.GetAll)
+	app.Get("/api/banner", middleware.Auth, hdl.GetAll) // Mobile (Active Only)
 
-	// Admin Route
 	admin := app.Group("/api/admin/banner", middleware.Auth, middleware.Role("Admin"))
+	admin.Get("/", hdl.GetAllAdmin) // Admin (All)
 	admin.Post("/", hdl.Create)
-	admin.Delete("/:id", hdl.Delete)
+	admin.Put("/:id/toggle", hdl.ToggleStatus) // Toggle Active/Inactive
 }

@@ -60,8 +60,36 @@ paths:
                     type: string
                   token:
                     type: string
+                  refresh_token:
+                    type: string
                   data:
                     type: object
+
+  /api/refresh-token:
+    post:
+      summary: Refresh Access Token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        200:
+          description: Token Refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  refresh_token:
+                    type: string
 
   /api/asn/profile:
     get:
@@ -186,6 +214,16 @@ paths:
                     description: "Jika BELUM_ABSEN -> Tombol Checkin Aktif. Jika lainnya -> Tombol Mati."
                   data:
                     type: object
+                  jadwal:
+                    type: object
+                    nullable: true
+                    description: "Info Shift Hari Ini (Realtime dari Admin)"
+                    properties:
+                      id: { type: integer }
+                      shift_id: { type: integer }
+                      nama_shift: { type: string }
+                      jam_masuk: { type: string }
+                      jam_pulang: { type: string }
 
   /api/kehadiran/rekap:
     get:

@@ -81,22 +81,80 @@ func (h *ASNHandler) Login(c *fiber.Ctx) error {
 	}
 
 	// 4. Generate Token JWT
-	token, err := generateToken(asn)
+	accessToken, refreshToken, err := generateTokens(asn)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal membuat token"})
 	}
 
+	// Ambil list permission
+	var permissions []string
+	for _, p := range asn.Role.Permissions {
+		permissions = append(permissions, p.NamaPermission)
+	}
+
 	// 4. Return Token ke Client
 	return c.JSON(fiber.Map{
-		"message": "Login berhasil",
-		"token":   token, // <--- Token ini yang nanti dicopy ke Bruno
+		"message":       "Login berhasil",
+		"token":         accessToken,  // Access Token (15 Menit)
+		"refresh_token": refreshToken, // Refresh Token (7 Hari)
 		"data": fiber.Map{
-			"nip":        asn.NIP,
-			"nama":       asn.Nama,
-			"role":       asn.Role.NamaRole,
-			"jabatan":    asn.Jabatan,
-			"organisasi": asn.Organisasi.NamaOrganisasi, // Tambahan untuk Dashboard
+			"nip":         asn.NIP,
+			"nama":        asn.Nama,
+			"role":        asn.Role.NamaRole,
+			"permissions": permissions, // Kirim permission ke frontend
+			"jabatan":     asn.Jabatan,
+			"organisasi":  asn.Organisasi.NamaOrganisasi, // Tambahan untuk Dashboard
 		},
+	})
+}
+
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+func (h *ASNHandler) RefreshToken(c *fiber.Ctx) error {
+	var req RefreshTokenRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format data salah"})
+	}
+
+	// Parse & Validasi Refresh Token
+	token, err := jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fiber.ErrUnauthorized
+		}
+		return []byte("rahasia_negara"), nil
+	})
+
+	if err != nil || !token.Valid {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Refresh token tidak valid atau kadaluwarsa"})
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Token claims invalid"})
+	}
+
+	// Ambil User ID dari claims refresh token
+	userIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Token invalid (user_id)"})
+	}
+	userID := uint(userIDFloat)
+	asn, err := h.repo.FindByID(userID)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User tidak ditemukan"})
+	}
+
+	// Generate Token Baru
+	newAccessToken, newRefreshToken, err := generateTokens(asn)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal generate token"})
+	}
+
+	return c.JSON(fiber.Map{
+		"token":         newAccessToken,
+		"refresh_token": newRefreshToken,
 	})
 }
 
@@ -230,6 +288,8 @@ type CreateASNRequest struct {
 	Jabatan  string `json:"jabatan"`
 	Bidang   string `json:"bidang"`
 	RoleID   uint   `json:"role_id"`
+	Email    string `json:"email"`
+	NoHP     string `json:"no_hp"`
 }
 
 func (h *ASNHandler) CreateASN(c *fiber.Ctx) error {
@@ -250,10 +310,13 @@ func (h *ASNHandler) CreateASN(c *fiber.Ctx) error {
 		RoleID:       req.RoleID,
 		OrganisasiID: orgID,
 		IsActive:     true,
+		Email:        req.Email,
+		NoHP:         req.NoHP,
 	}
 
 	if err := h.repo.Create(&asn); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menambah pegawai"})
+		// Tampilkan error asli agar ketahuan penyebabnya (misal: Duplicate NIP)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Pegawai berhasil ditambahkan", "data": asn})
 }
@@ -273,6 +336,10 @@ func (h *ASNHandler) UpdateASN(c *fiber.Ctx) error {
 	asn.Nama = req.Nama
 	asn.Jabatan = req.Jabatan
 	asn.Bidang = req.Bidang
+	asn.IsActive = req.IsActive // Update Status Aktif/Nonaktif
+	asn.RoleID = req.RoleID     // Update Role
+	asn.Email = req.Email
+	asn.NoHP = req.NoHP
 	// NIP dan Password biasanya butuh endpoint khusus atau validasi ketat
 
 	if err := h.repo.Update(asn); err != nil {
@@ -298,16 +365,30 @@ func (h *ASNHandler) ResetDevice(c *fiber.Ctx) error {
 }
 
 // Helper function untuk membuat JWT
-func generateToken(asn *model.ASN) (string, error) {
-	claims := jwt.MapClaims{
+func generateTokens(asn *model.ASN) (string, string, error) {
+	// 1. Access Token (15 Menit)
+	accessClaims := jwt.MapClaims{
 		"user_id":       asn.ID,
 		"nip":           asn.NIP,
 		"role":          asn.Role.NamaRole, // Tambahkan Role ke Token
 		"organisasi_id": asn.OrganisasiID,
-		"exp":           time.Now().Add(time.Hour * 24).Unix(), // Token berlaku 24 jam
+		"exp":           time.Now().Add(time.Minute * 15).Unix(), // Token berlaku 15 Menit
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	accessTokenString, err := accessToken.SignedString([]byte("rahasia_negara"))
+	if err != nil {
+		return "", "", err
+	}
+
+	// 2. Refresh Token (7 Hari)
+	refreshClaims := jwt.MapClaims{
+		"user_id": asn.ID,
+		"exp":     time.Now().Add(time.Hour * 24 * 7).Unix(), // Token berlaku 7 Hari
+	}
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+	refreshTokenString, err := refreshToken.SignedString([]byte("rahasia_negara"))
+
 	// Pastikan key "rahasia_negara" ini SAMA dengan yang ada di auth_middleware.go
-	return token.SignedString([]byte("rahasia_negara"))
+	return accessTokenString, refreshTokenString, err
 }

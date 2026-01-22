@@ -30,7 +30,7 @@ func NewASNRepository(db *gorm.DB) ASNRepository {
 func (r *asnRepository) FindByNIP(nip string) (*model.ASN, error) {
 	var asn model.ASN
 	// Kita Preload Role dan Organisasi agar datanya lengkap saat login
-	err := r.db.Preload("Role").Preload("Organisasi").Preload("Devices").Where("nip = ?", nip).First(&asn).Error
+	err := r.db.Preload("Role.Permissions").Preload("Organisasi").Preload("Devices").Where("nip = ?", nip).First(&asn).Error
 	return &asn, err
 }
 
@@ -42,7 +42,7 @@ func (r *asnRepository) GetLokasiByOrganisasiID(orgID uint) (*model.Lokasi, erro
 
 func (r *asnRepository) FindByID(id uint) (*model.ASN, error) {
 	var asn model.ASN
-	err := r.db.Preload("Atasan").Preload("Devices").First(&asn, id).Error
+	err := r.db.Preload("Role").Preload("Atasan").Preload("Devices").First(&asn, id).Error
 	return &asn, err
 }
 

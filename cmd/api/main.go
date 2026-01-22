@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"my-flutter-backend/config"
 	"my-flutter-backend/internal/routes"
 
@@ -10,7 +11,9 @@ import (
 )
 
 func main() {
+	fmt.Println("1. Memulai aplikasi... Mencoba koneksi ke Database...")
 	config.ConnectDB()
+	fmt.Println("2. Database berhasil terhubung! Menyiapkan routes...")
 
 	app := fiber.New()
 
@@ -33,5 +36,6 @@ func main() {
 	routes.SetupHariLiburRoutes(app, config.DB)
 	routes.SetupRoleRoutes(app, config.DB)
 
+	fmt.Println("3. Server siap! Menunggu request di port :3000")
 	app.Listen(":3000")
 }

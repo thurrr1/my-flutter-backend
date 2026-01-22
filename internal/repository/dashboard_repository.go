@@ -43,6 +43,15 @@ func (r *dashboardRepository) GetDashboardStats(orgID uint, date string, month i
 	for _, d := range daily {
 		dailyMap[d.StatusMasuk] = d.Count
 	}
+
+	// Hitung Pulang Cepat Hari Ini (Terpisah karena ada di kolom status_pulang)
+	var pcDaily int64
+	r.db.Table("kehadirans").
+		Joins("JOIN asns ON asns.id = kehadirans.asn_id").
+		Where("asns.organisasi_id = ? AND kehadirans.tanggal = ? AND status_pulang = ?", orgID, date, "PULANG_CEPAT").
+		Count(&pcDaily)
+	dailyMap["PULANG_CEPAT"] = pcDaily
+
 	stats["hari_ini"] = dailyMap
 
 	// 3. Statistik Bulanan (Bulan Ini)
@@ -62,6 +71,15 @@ func (r *dashboardRepository) GetDashboardStats(orgID uint, date string, month i
 	for _, m := range monthly {
 		monthlyMap[m.StatusMasuk] = m.Count
 	}
+
+	// Hitung Pulang Cepat Bulan Ini
+	var pcMonthly int64
+	r.db.Table("kehadirans").
+		Joins("JOIN asns ON asns.id = kehadirans.asn_id").
+		Where("asns.organisasi_id = ? AND kehadirans.bulan = ? AND kehadirans.tahun = ? AND status_pulang = ?", orgID, monthStr, yearStr, "PULANG_CEPAT").
+		Count(&pcMonthly)
+	monthlyMap["PULANG_CEPAT"] = pcMonthly
+
 	stats["bulan_ini"] = monthlyMap
 
 	return stats, nil

@@ -71,6 +71,8 @@ paths:
                 jabatan: { type: string }
                 bidang: { type: string }
                 role_id: { type: integer }
+                email: { type: string, format: email }
+                no_hp: { type: string }
       responses:
         '200':
           description: Pegawai created
@@ -104,6 +106,10 @@ paths:
                 nama: { type: string }
                 jabatan: { type: string }
                 bidang: { type: string }
+                role_id: { type: integer }
+                is_active: { type: boolean }
+                email: { type: string, format: email }
+                no_hp: { type: string }
       responses:
         '200':
           description: Pegawai updated
@@ -135,11 +141,80 @@ paths:
   # --- ROLES ---
   /api/admin/roles:
     get:
-      summary: Get All Roles (For Dropdown)
-      tags: [Master Data]
+      summary: Get All Roles
+      tags: [Role]
       responses:
         '200':
           description: List roles
+    post:
+      summary: Create New Role
+      tags: [Role]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_role: { type: string }
+                permission_ids: 
+                  type: array
+                  items: { type: integer }
+      responses:
+        '200':
+          description: Role created
+
+  /api/admin/roles/permissions:
+    get:
+      summary: Get All Available Permissions
+      tags: [Role]
+      responses:
+        '200':
+          description: List permissions
+
+  /api/admin/roles/{id}:
+    get:
+      summary: Get Role Detail
+      tags: [Role]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Role detail
+    put:
+      summary: Update Role
+      tags: [Role]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_role: { type: string }
+                permission_ids: 
+                  type: array
+                  items: { type: integer }
+      responses:
+        '200':
+          description: Role updated
+    delete:
+      summary: Delete Role
+      tags: [Role]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Role deleted
 
   # --- JADWAL ---
   /api/admin/jadwal:
@@ -186,12 +261,45 @@ paths:
                 shift_id: { type: integer }
                 bulan: { type: integer }
                 tahun: { type: integer }
-                ignore_weekend: { type: boolean }
+                days: 
+                  type: array
+                  items: { type: integer }
+                  description: "Array hari yang dipilih (0=Minggu, 1=Senin, ..., 6=Sabtu)"
       responses:
         '200':
           description: Jadwal generated
 
+  /api/admin/jadwal/generate-daily:
+    post:
+      summary: Generate Jadwal Harian (Bulk)
+      tags: [Jadwal]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                asn_ids:
+                  type: array
+                  items: { type: integer }
+                shift_id: { type: integer }
+                tanggal: { type: string, format: date }
+      responses:
+        '200':
+          description: Jadwal harian generated
+
   /api/admin/jadwal/{id}:
+    get:
+      summary: Get Jadwal Detail
+      tags: [Jadwal]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Detail jadwal
     put:
       summary: Update Shift pada Jadwal
       tags: [Jadwal]
@@ -221,6 +329,19 @@ paths:
       responses:
         '200':
           description: Jadwal deleted
+
+  /api/admin/jadwal/date/bulk:
+    delete:
+      summary: Delete All Jadwal on Date
+      tags: [Jadwal]
+      parameters:
+        - in: query
+          name: tanggal
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Jadwal deleted successfully
 
   # --- SHIFT ---
   /api/admin/shift:

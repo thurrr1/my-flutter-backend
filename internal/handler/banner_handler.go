@@ -21,13 +21,27 @@ func NewBannerHandler(repo repository.BannerRepository) *BannerHandler {
 }
 
 func (h *BannerHandler) GetAll(c *fiber.Ctx) error {
-	banners, err := h.repo.GetAll()
+	banners, err := h.repo.GetAllActive() // Mobile hanya lihat yang aktif
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil banner"})
 	}
 
 	// Modifikasi Foto agar menjadi Full URL
 	baseURL := c.BaseURL() // Otomatis mendeteksi http://localhost:3000 atau IP
+	for i := range banners {
+		banners[i].Foto = baseURL + "/" + banners[i].Foto
+	}
+
+	return c.JSON(fiber.Map{"data": banners})
+}
+
+func (h *BannerHandler) GetAllAdmin(c *fiber.Ctx) error {
+	banners, err := h.repo.GetAll() // Admin lihat semua
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil banner"})
+	}
+
+	baseURL := c.BaseURL()
 	for i := range banners {
 		banners[i].Foto = baseURL + "/" + banners[i].Foto
 	}
@@ -52,7 +66,9 @@ func (h *BannerHandler) Create(c *fiber.Ctx) error {
 		}
 		filename := fmt.Sprintf("banner_%d_%s", time.Now().Unix(), filepath.Base(file.Filename))
 		pathFile = fmt.Sprintf("uploads/banners/%s", filename)
-		c.SaveFile(file, pathFile)
+		if err := c.SaveFile(file, pathFile); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menyimpan file gambar"})
+		}
 	} else {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Foto banner wajib diupload"})
 	}
@@ -70,4 +86,12 @@ func (h *BannerHandler) Delete(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menonaktifkan banner"})
 	}
 	return c.JSON(fiber.Map{"message": "Banner berhasil dinonaktifkan"})
+}
+
+func (h *BannerHandler) ToggleStatus(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+	if err := h.repo.ToggleStatus(uint(id)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengubah status banner"})
+	}
+	return c.JSON(fiber.Map{"message": "Status banner berhasil diubah"})
 }

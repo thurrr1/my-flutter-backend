@@ -15,6 +15,7 @@ type JadwalRepository interface {
 	Delete(id uint) error
 	CreateMany(jadwal []model.Jadwal) error
 	CountByShiftID(shiftID uint) (int64, error)
+	DeleteByDate(date string, orgID uint) error
 }
 
 type jadwalRepository struct {
@@ -68,4 +69,9 @@ func (r *jadwalRepository) CountByShiftID(shiftID uint) (int64, error) {
 	var count int64
 	err := r.db.Model(&model.Jadwal{}).Where("shift_id = ?", shiftID).Count(&count).Error
 	return count, err
+}
+
+func (r *jadwalRepository) DeleteByDate(date string, orgID uint) error {
+	// Hapus jadwal pada tanggal tertentu untuk semua pegawai di organisasi tersebut
+	return r.db.Where("tanggal = ? AND asn_id IN (SELECT id FROM asns WHERE organisasi_id = ?)", date, orgID).Delete(&model.Jadwal{}).Error
 }

@@ -60,3 +60,14 @@ type Lokasi struct {
 	Longitude    float64 `json:"longitude"`
 	RadiusMeter  float64 `json:"radius_meter"`
 }
+
+type Role struct {
+	gorm.Model
+	NamaRole    string       `json:"nama_role"`
+	Permissions []Permission `json:"permissions" gorm:"many2many:role_permissions;"`
+}
+
+type Permission struct {
+	gorm.Model
+	NamaPermission string `json:"nama_permission"` // Contoh: "view_dashboard", "create_asn"
+}

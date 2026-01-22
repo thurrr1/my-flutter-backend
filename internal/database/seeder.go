@@ -43,6 +43,36 @@ func SeedAll(db *gorm.DB) {
 		db.FirstOrCreate(&p, model.Permission{NamaPermission: p.NamaPermission})
 	}
 
+	// 4.1 Assign Permissions to Roles (Mapping Permission ke Role)
+	var adminRole, atasanRole, pegawaiRole model.Role
+	db.Where("nama_role = ?", "Admin").First(&adminRole)     // ID 1
+	db.Where("nama_role = ?", "Atasan").First(&atasanRole)   // ID 2
+	db.Where("nama_role = ?", "Pegawai").First(&pegawaiRole) // ID 3
+
+	var allPerms []model.Permission
+	db.Find(&allPerms)
+
+	// 1. Admin (ID 1): Punya semua permission
+	db.Model(&adminRole).Association("Permissions").Replace(allPerms)
+
+	// 2. Atasan (ID 2): Semua kecuali 'edit_jadwal'
+	var atasanPerms []model.Permission
+	for _, p := range allPerms {
+		if p.NamaPermission != "edit_jadwal" {
+			atasanPerms = append(atasanPerms, p)
+		}
+	}
+	db.Model(&atasanRole).Association("Permissions").Replace(atasanPerms)
+
+	// 3. Pegawai (ID 3): Cuma punya permission 'view_rekap'
+	var pegawaiPerms []model.Permission
+	for _, p := range allPerms {
+		if p.NamaPermission == "view_rekap" {
+			pegawaiPerms = append(pegawaiPerms, p)
+		}
+	}
+	db.Model(&pegawaiRole).Association("Permissions").Replace(pegawaiPerms)
+
 	// 5. Seed Shift Default
 	shiftNormal := model.Shift{
 		NamaShift: "Normal (Senin-Jumat)",
@@ -53,10 +83,6 @@ func SeedAll(db *gorm.DB) {
 
 	// 6. Seed Akun Admin Pertama (ASN)
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
-
-	// Cari Role ID Admin
-	var adminRole model.Role
-	db.Where("nama_role = ?", "Admin").First(&adminRole)
 
 	adminASN := model.ASN{
 		Nama:         "Administrator Utama",
@@ -77,9 +103,6 @@ func SeedAll(db *gorm.DB) {
 	}
 
 	// 7. Seed Pegawai (Bawahan dari Admin)
-	var pegawaiRole model.Role
-	db.Where("nama_role = ?", "Pegawai").First(&pegawaiRole)
-
 	pegawaiASN := model.ASN{
 		Nama:         "Budi Pegawai",
 		NIP:          "987654321", // NIP Beda
