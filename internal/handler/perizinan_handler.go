@@ -15,10 +15,11 @@ type PerizinanHandler struct {
 	repo          repository.PerizinanRepository
 	kehadiranRepo repository.KehadiranRepository
 	asnRepo       repository.ASNRepository
+	jadwalRepo    repository.JadwalRepository
 }
 
-func NewPerizinanHandler(repo repository.PerizinanRepository, kRepo repository.KehadiranRepository, asnRepo repository.ASNRepository) *PerizinanHandler {
-	return &PerizinanHandler{repo: repo, kehadiranRepo: kRepo, asnRepo: asnRepo}
+func NewPerizinanHandler(repo repository.PerizinanRepository, kRepo repository.KehadiranRepository, asnRepo repository.ASNRepository, jadwalRepo repository.JadwalRepository) *PerizinanHandler {
+	return &PerizinanHandler{repo: repo, kehadiranRepo: kRepo, asnRepo: asnRepo, jadwalRepo: jadwalRepo}
 }
 
 type PengajuanIzinRequest struct {
@@ -166,9 +167,17 @@ func (h *PerizinanHandler) generateKehadiran(izin *model.PerizinanCuti) {
 			status = "CUTI"
 		}
 
+		// Cari Jadwal pada tanggal tersebut untuk mengisi JadwalID
+		var jadwalID uint
+		jadwal, err := h.jadwalRepo.GetByASNAndDate(izin.ASNID, d.Format("2006-01-02"))
+		if err == nil && jadwal != nil {
+			jadwalID = jadwal.ID
+		}
+
 		k := model.Kehadiran{
 			ASNID:           izin.ASNID,
 			PerizinanCutiID: &izin.ID,
+			JadwalID:        jadwalID,
 			Tanggal:         d.Format("2006-01-02"),
 			Tahun:           d.Format("2006"),
 			Bulan:           d.Format("01"),

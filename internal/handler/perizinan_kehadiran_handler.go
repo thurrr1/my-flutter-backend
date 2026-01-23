@@ -114,28 +114,12 @@ func (h *PerizinanKehadiranHandler) ProcessApproval(c *fiber.Ctx) error {
 	}
 
 	// Jika DISETUJUI, update data kehadiran (masukkan ID Koreksi)
-	// Jika DISETUJUI, update data kehadiran
 	if req.Status == "DISETUJUI" {
 		kehadiran, err := h.kehadiranRepo.GetByDate(koreksi.ASNID, koreksi.TanggalKehadiran)
 		if err == nil {
-			// KASUS 1: Data Absen Ada (Misal status TERLAMBAT ingin dikoreksi jadi HADIR)
+			// Hanya update data kehadiran yang sudah ada (Inject ID Izin)
 			kehadiran.PerizinanKehadiranID = &koreksi.ID
-			kehadiran.StatusMasuk = "HADIR" // Koreksi dianggap valid, ubah jadi HADIR
 			h.kehadiranRepo.Update(kehadiran)
-		} else {
-			// KASUS 2: Data Absen Tidak Ada (Misal LUPA ABSEN / ALPHA)
-			// Kita buatkan data kehadiran baru
-			tgl, _ := time.Parse("2006-01-02", koreksi.TanggalKehadiran)
-			newKehadiran := model.Kehadiran{
-				ASNID:                koreksi.ASNID,
-				Tanggal:              koreksi.TanggalKehadiran,
-				Tahun:                tgl.Format("2006"),
-				Bulan:                tgl.Format("01"),
-				StatusMasuk:          "HADIR", // Dianggap Hadir karena koreksi disetujui
-				StatusPulang:         "PULANG",
-				PerizinanKehadiranID: &koreksi.ID,
-			}
-			h.kehadiranRepo.Create(newKehadiran)
 		}
 	}
 

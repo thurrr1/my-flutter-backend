@@ -22,6 +22,8 @@ func SetupASNRoutes(app *fiber.App, db *gorm.DB) {
 	api.Get("/profile", hdl.GetProfile)
 	api.Put("/profile", hdl.UpdateProfile)
 	api.Put("/password", hdl.ChangePassword)
+	api.Get("/atasan-list", hdl.GetListAtasan) // Get List Kandidat Atasan
+	api.Post("/atasan", hdl.UpdateAtasan)      // Update Atasan Saya
 
 	// Admin Routes (Kelola Pegawai)
 	admin := app.Group("/api/admin/asn", middleware.Auth, middleware.Role("Admin"))

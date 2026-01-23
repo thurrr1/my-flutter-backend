@@ -12,10 +12,11 @@ import (
 type JadwalHandler struct {
 	repo          repository.JadwalRepository
 	hariLiburRepo repository.HariLiburRepository // Tambah ini
+	kehadiranRepo repository.KehadiranRepository
 }
 
-func NewJadwalHandler(repo repository.JadwalRepository, hlRepo repository.HariLiburRepository) *JadwalHandler {
-	return &JadwalHandler{repo: repo, hariLiburRepo: hlRepo}
+func NewJadwalHandler(repo repository.JadwalRepository, hlRepo repository.HariLiburRepository, kRepo repository.KehadiranRepository) *JadwalHandler {
+	return &JadwalHandler{repo: repo, hariLiburRepo: hlRepo, kehadiranRepo: kRepo}
 }
 
 type CreateJadwalRequest struct {
@@ -140,6 +141,13 @@ func (h *JadwalHandler) GenerateJadwalHarian(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Berhasil membuat jadwal harian"})
 }
 
+type JadwalWithStatus struct {
+	model.Jadwal
+	StatusKehadiran string `json:"status_kehadiran"`
+	JamMasukReal    string `json:"jam_masuk_real"`
+	JamPulangReal   string `json:"jam_pulang_real"`
+}
+
 // GET /api/admin/jadwal?tanggal=2024-10-25
 func (h *JadwalHandler) GetJadwalHarian(c *fiber.Ctx) error {
 	orgID := uint(c.Locals("organisasi_id").(float64))
@@ -154,7 +162,57 @@ func (h *JadwalHandler) GetJadwalHarian(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil jadwal"})
 	}
 
-	return c.JSON(fiber.Map{"data": jadwals})
+	// Ambil Data Kehadiran pada tanggal tersebut untuk Organisasi ini
+	kehadirans, err := h.kehadiranRepo.GetByDateAndOrg(tanggal, orgID)
+	kehadiranMap := make(map[uint]model.Kehadiran)
+	if err == nil {
+		for _, k := range kehadirans {
+			kehadiranMap[k.ASNID] = k
+		}
+	}
+
+	// Gabungkan Jadwal dengan Status Kehadiran
+	response := make([]JadwalWithStatus, 0)
+	today, _ := time.Parse("2006-01-02", time.Now().Format("2006-01-02"))
+	targetDate, _ := time.Parse("2006-01-02", tanggal)
+
+	for _, j := range jadwals {
+		status := "BELUM ABSEN"
+		jamMasuk := ""
+		jamPulang := ""
+
+		if k, exists := kehadiranMap[j.ASNID]; exists {
+			jamMasuk = k.JamMasukReal
+			jamPulang = k.JamPulangReal
+
+			if k.StatusMasuk == "IZIN" {
+				status = "IZIN"
+			} else if k.StatusMasuk == "CUTI" {
+				status = "CUTI"
+			} else if k.StatusMasuk == "TERLAMBAT" || k.StatusPulang == "PULANG_CEPAT" {
+				status = "TERLAMBAT"
+				if k.PerizinanKehadiranID != nil {
+					status += " (Diizinkan)"
+				}
+			} else {
+				status = "HADIR"
+			}
+		} else {
+			// Jika tidak ada data kehadiran dan tanggal sudah lewat -> ALPHA
+			if targetDate.Before(today) {
+				status = "ALPHA"
+			}
+		}
+
+		response = append(response, JadwalWithStatus{
+			Jadwal:          j,
+			StatusKehadiran: status,
+			JamMasukReal:    jamMasuk,
+			JamPulangReal:   jamPulang,
+		})
+	}
+
+	return c.JSON(fiber.Map{"data": response})
 }
 
 func (h *JadwalHandler) GetJadwalDetail(c *fiber.Ctx) error {

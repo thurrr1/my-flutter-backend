@@ -17,6 +17,7 @@ type ASNRepository interface {
 	GetAll() ([]model.ASN, error)
 	ResetDevice(asnID uint) error
 	Count() (int64, error)
+	GetByPermission(permissionName string) ([]model.ASN, error)
 }
 
 type asnRepository struct {
@@ -30,7 +31,7 @@ func NewASNRepository(db *gorm.DB) ASNRepository {
 func (r *asnRepository) FindByNIP(nip string) (*model.ASN, error) {
 	var asn model.ASN
 	// Kita Preload Role dan Organisasi agar datanya lengkap saat login
-	err := r.db.Preload("Role.Permissions").Preload("Organisasi").Preload("Devices").Where("nip = ?", nip).First(&asn).Error
+	err := r.db.Preload("Role.Permissions").Preload("Organisasi").Preload("Devices").Preload("Atasan").Where("nip = ?", nip).First(&asn).Error
 	return &asn, err
 }
 
@@ -78,4 +79,16 @@ func (r *asnRepository) Count() (int64, error) {
 	var count int64
 	err := r.db.Model(&model.ASN{}).Where("is_active = ?", true).Count(&count).Error
 	return count, err
+}
+
+func (r *asnRepository) GetByPermission(permissionName string) ([]model.ASN, error) {
+	var asns []model.ASN
+	// Join tabel untuk mencari ASN yang memiliki Role dengan Permission tertentu
+	err := r.db.Distinct().Table("asns").
+		Joins("JOIN roles ON roles.id = asns.role_id").
+		Joins("JOIN role_permissions ON role_permissions.role_id = roles.id").
+		Joins("JOIN permissions ON permissions.id = role_permissions.permission_id").
+		Where("permissions.nama_permission = ?", permissionName).
+		Preload("Role").Preload("Organisasi").Find(&asns).Error
+	return asns, err
 }

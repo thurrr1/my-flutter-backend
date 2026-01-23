@@ -13,8 +13,9 @@ func SetupPerizinanRoutes(app *fiber.App, db *gorm.DB) {
 	repo := repository.NewPerizinanRepository(db)
 	kehadiranRepo := repository.NewKehadiranRepository(db) // Dibutuhkan untuk Approval
 	asnRepo := repository.NewASNRepository(db)             // Dibutuhkan untuk cari NIP Atasan
+	jadwalRepo := repository.NewJadwalRepository(db)
 
-	hdl := handler.NewPerizinanHandler(repo, kehadiranRepo, asnRepo)
+	hdl := handler.NewPerizinanHandler(repo, kehadiranRepo, asnRepo, jadwalRepo)
 
 	api := app.Group("/api/perizinan", middleware.Auth)
 

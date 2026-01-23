@@ -92,6 +92,11 @@ func (h *ASNHandler) Login(c *fiber.Ctx) error {
 		permissions = append(permissions, p.NamaPermission)
 	}
 
+	nipAtasan := ""
+	if asn.Atasan != nil {
+		nipAtasan = asn.Atasan.NIP
+	}
+
 	// 4. Return Token ke Client
 	return c.JSON(fiber.Map{
 		"message":       "Login berhasil",
@@ -103,7 +108,10 @@ func (h *ASNHandler) Login(c *fiber.Ctx) error {
 			"role":        asn.Role.NamaRole,
 			"permissions": permissions, // Kirim permission ke frontend
 			"jabatan":     asn.Jabatan,
+			"bidang":      asn.Bidang,
 			"organisasi":  asn.Organisasi.NamaOrganisasi, // Tambahan untuk Dashboard
+			"atasan_id":   asn.AtasanID,
+			"nip_atasan":  nipAtasan,
 		},
 	})
 }
@@ -362,6 +370,64 @@ func (h *ASNHandler) ResetDevice(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal reset device"})
 	}
 	return c.JSON(fiber.Map{"message": "Device berhasil di-reset, user bisa login di HP baru"})
+}
+
+func (h *ASNHandler) GetListAtasan(c *fiber.Ctx) error {
+	// Cari ASN yang punya permission 'approve_cuti'
+	// Pastikan nama permission di database sesuai, misal: "approve_cuti" atau "approval_atasan"
+	asns, err := h.repo.GetByPermission("approve_cuti")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data atasan"})
+	}
+
+	// Filter: Exclude diri sendiri dari list
+	myID := uint(c.Locals("user_id").(float64))
+	var result []model.ASN
+	for _, a := range asns {
+		if a.ID != myID {
+			result = append(result, a)
+		}
+	}
+
+	return c.JSON(fiber.Map{"data": result})
+}
+
+type UpdateAtasanRequest struct {
+	AtasanID uint `json:"atasan_id"`
+}
+
+func (h *ASNHandler) UpdateAtasan(c *fiber.Ctx) error {
+	asnID := uint(c.Locals("user_id").(float64))
+	var req UpdateAtasanRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	asn, err := h.repo.FindByID(asnID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User tidak ditemukan"})
+	}
+
+	if req.AtasanID != 0 {
+		// Validasi: Atasan tidak boleh diri sendiri
+		if req.AtasanID == asnID {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Tidak bisa menjadikan diri sendiri sebagai atasan"})
+		}
+		atasanID := req.AtasanID
+		asn.AtasanID = &atasanID
+	} else {
+		asn.AtasanID = nil // Hapus atasan jika dikirim 0
+	}
+
+	// PENTING: Kosongkan struct Atasan yang ter-load (Preload) agar GORM tidak bingung
+	// dan benar-benar mengupdate kolom atasan_id dengan nilai baru
+	asn.Atasan = nil
+
+	if err := h.repo.Update(asn); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal update atasan"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Atasan berhasil diperbarui"})
 }
 
 // Helper function untuk membuat JWT

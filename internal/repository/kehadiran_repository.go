@@ -16,6 +16,7 @@ type KehadiranRepository interface {
 	GetByDate(asnID uint, date string) (*model.Kehadiran, error)
 	GetByMonth(asnID uint, month string, year string) ([]model.Kehadiran, error)
 	CountByStatus(date string, status string) (int64, error)
+	GetByDateAndOrg(date string, orgID uint) ([]model.Kehadiran, error)
 }
 
 type kehadiranRepository struct {
@@ -71,4 +72,12 @@ func (r *kehadiranRepository) CountByStatus(date string, status string) (int64, 
 	var count int64
 	err := r.db.Model(&model.Kehadiran{}).Where("DATE(tanggal) = ? AND status_masuk = ?", date, status).Count(&count).Error
 	return count, err
+}
+
+func (r *kehadiranRepository) GetByDateAndOrg(date string, orgID uint) ([]model.Kehadiran, error) {
+	var list []model.Kehadiran
+	err := r.db.Joins("JOIN asns ON asns.id = kehadirans.asn_id").
+		Where("kehadirans.tanggal = ? AND asns.organisasi_id = ?", date, orgID).
+		Find(&list).Error
+	return list, err
 }

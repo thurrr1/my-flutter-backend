@@ -12,16 +12,17 @@ import (
 func SetupJadwalRoutes(app *fiber.App, db *gorm.DB) {
 	repo := repository.NewJadwalRepository(db)
 	hlRepo := repository.NewHariLiburRepository(db) // Tambah ini
-	hdl := handler.NewJadwalHandler(repo, hlRepo)
+	kehadiranRepo := repository.NewKehadiranRepository(db)
+	hdl := handler.NewJadwalHandler(repo, hlRepo, kehadiranRepo)
 
 	api := app.Group("/api/admin", middleware.Auth, middleware.Role("Admin"))
 
-	api.Get("/jadwal", hdl.GetJadwalHarian) // Lihat per tanggal
+	api.Get("/jadwal", hdl.GetJadwalHarian)     // Lihat per tanggal
 	api.Get("/jadwal/:id", hdl.GetJadwalDetail) // Detail untuk Edit
-	api.Post("/jadwal", hdl.CreateJadwal)   // Buat manual satu
+	api.Post("/jadwal", hdl.CreateJadwal)       // Buat manual satu
 	api.Post("/jadwal/generate", hdl.GenerateJadwalBulanan)
 	api.Post("/jadwal/generate-daily", hdl.GenerateJadwalHarian) // Bulk Harian
-	api.Put("/jadwal/:id", hdl.UpdateJadwal)    // Edit Shift
-	api.Delete("/jadwal/:id", hdl.DeleteJadwal) // Hapus
-	api.Delete("/jadwal/date/bulk", hdl.DeleteJadwalByDate) // Hapus Massal per Tanggal
+	api.Put("/jadwal/:id", hdl.UpdateJadwal)                     // Edit Shift
+	api.Delete("/jadwal/:id", hdl.DeleteJadwal)                  // Hapus
+	api.Delete("/jadwal/date/bulk", hdl.DeleteJadwalByDate)      // Hapus Massal per Tanggal
 }
