@@ -17,6 +17,7 @@ type KehadiranRepository interface {
 	GetByMonth(asnID uint, month string, year string) ([]model.Kehadiran, error)
 	CountByStatus(date string, status string) (int64, error)
 	GetByDateAndOrg(date string, orgID uint) ([]model.Kehadiran, error)
+	GetByMonthAndOrg(month string, year string, orgID uint) ([]model.Kehadiran, error)
 }
 
 type kehadiranRepository struct {
@@ -58,8 +59,15 @@ func (r *kehadiranRepository) CreateMany(kehadiran []model.Kehadiran) error {
 
 func (r *kehadiranRepository) GetByDate(asnID uint, date string) (*model.Kehadiran, error) {
 	var kehadiran model.Kehadiran
-	err := r.db.Where("asn_id = ? AND DATE(tanggal) = ?", asnID, date).First(&kehadiran).Error
-	return &kehadiran, err
+	// Gunakan Find + Limit(1) agar GORM tidak mencetak log error "record not found"
+	err := r.db.Where("asn_id = ? AND DATE(tanggal) = ?", asnID, date).Limit(1).Find(&kehadiran).Error
+	if err != nil {
+		return nil, err
+	}
+	if kehadiran.ID == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &kehadiran, nil
 }
 
 func (r *kehadiranRepository) GetByMonth(asnID uint, month string, year string) ([]model.Kehadiran, error) {
@@ -78,6 +86,16 @@ func (r *kehadiranRepository) GetByDateAndOrg(date string, orgID uint) ([]model.
 	var list []model.Kehadiran
 	err := r.db.Joins("JOIN asns ON asns.id = kehadirans.asn_id").
 		Where("kehadirans.tanggal = ? AND asns.organisasi_id = ?", date, orgID).
+		Find(&list).Error
+	return list, err
+}
+
+func (r *kehadiranRepository) GetByMonthAndOrg(month string, year string, orgID uint) ([]model.Kehadiran, error) {
+	var list []model.Kehadiran
+	// [FIX] Tambahkan Select("kehadirans.*") untuk menghindari GORM mencoba load relasi Jadwal
+	// yang menyebabkan error jika ada data Kehadiran dengan JadwalID = 0.
+	err := r.db.Select("kehadirans.*").Joins("JOIN asns ON asns.id = kehadirans.asn_id").
+		Where("kehadirans.bulan = ? AND kehadirans.tahun = ? AND asns.organisasi_id = ?", month, year, orgID).
 		Find(&list).Error
 	return list, err
 }

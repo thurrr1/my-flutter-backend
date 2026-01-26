@@ -6,6 +6,7 @@ import (
 	"my-flutter-backend/internal/repository"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -36,6 +37,14 @@ func (h *PerizinanHandler) AjukanIzin(c *fiber.Ctx) error {
 	var req PengajuanIzinRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	// Validasi Format Tanggal (YYYY-MM-DD)
+	if _, err := time.Parse("2006-01-02", req.TanggalMulai); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format tanggal mulai salah (Gunakan YYYY-MM-DD)"})
+	}
+	if _, err := time.Parse("2006-01-02", req.TanggalSelesai); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format tanggal selesai salah (Gunakan YYYY-MM-DD)"})
 	}
 
 	// Handle File Upload (Bukti Izin)
@@ -153,42 +162,73 @@ func (h *PerizinanHandler) ProcessApproval(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Status perizinan berhasil diperbarui"})
 }
 
+// normalizeDateString menangani variasi format seperti "YYYY-M-D" dan mengubahnya menjadi "YYYY-MM-DD".
+func normalizeDateString(dateStr string) string {
+	parts := strings.Split(dateStr, "-")
+	if len(parts) != 3 {
+		return dateStr // Kembalikan apa adanya jika format tidak bisa di-parse
+	}
+	if len(parts[1]) == 1 {
+		parts[1] = "0" + parts[1] // Tambahkan 0 di depan bulan
+	}
+	if len(parts[2]) == 1 {
+		parts[2] = "0" + parts[2] // Tambahkan 0 di depan hari
+	}
+	return strings.Join(parts, "-")
+}
+
 // Helper untuk generate data kehadiran berhari-hari
 func (h *PerizinanHandler) generateKehadiran(izin *model.PerizinanCuti) {
-	startDate, _ := time.Parse("2006-01-02", izin.TanggalMulai)
-	endDate, _ := time.Parse("2006-01-02", izin.TanggalSelesai)
-
-	var listKehadiran []model.Kehadiran
+	// Normalisasi string tanggal sebelum di-parse untuk menangani format seperti "2026-01-9"
+	startDate, err := time.Parse("2006-01-02", normalizeDateString(izin.TanggalMulai))
+	if err != nil {
+		fmt.Printf("Error parsing start date for Izin ID %d: %v\n", izin.ID, err)
+		return
+	}
+	endDate, err := time.Parse("2006-01-02", normalizeDateString(izin.TanggalSelesai))
+	if err != nil {
+		fmt.Printf("Error parsing end date for Izin ID %d: %v\n", izin.ID, err)
+		return
+	}
 
 	// Loop dari tanggal mulai sampai selesai
 	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
+		dateStr := d.Format("2006-01-02")
+
+		// Cari Jadwal pada tanggal tersebut untuk mengisi JadwalID
+		jadwal, err := h.jadwalRepo.GetByASNAndDate(izin.ASNID, dateStr)
+
+		// [FIX] HANYA buat record Kehadiran (IZIN/CUTI) jika ada jadwal kerja pada hari tersebut.
+		if err != nil {
+			continue
+		}
+
 		status := "IZIN"
 		if izin.Tipe == "CUTI" {
 			status = "CUTI"
 		}
 
-		// Cari Jadwal pada tanggal tersebut untuk mengisi JadwalID
-		var jadwalID uint
-		jadwal, err := h.jadwalRepo.GetByASNAndDate(izin.ASNID, d.Format("2006-01-02"))
-		if err == nil && jadwal != nil {
-			jadwalID = jadwal.ID
+		// Cek apakah sudah ada data kehadiran (misal: ALFA atau sudah absen)
+		existing, err := h.kehadiranRepo.GetByDate(izin.ASNID, dateStr)
+		if err == nil && existing.ID != 0 {
+			// UPDATE: Jika sudah ada, update statusnya menjadi IZIN/CUTI
+			existing.StatusMasuk = status
+			existing.StatusPulang = status
+			existing.PerizinanCutiID = &izin.ID
+			h.kehadiranRepo.Update(existing)
+		} else {
+			// CREATE: Jika belum ada, buat baru
+			k := model.Kehadiran{
+				ASNID:           izin.ASNID,
+				PerizinanCutiID: &izin.ID,
+				JadwalID:        jadwal.ID, // JadwalID dijamin valid karena jadwal != nil
+				Tanggal:         dateStr,
+				Tahun:           d.Format("2006"),
+				Bulan:           d.Format("01"),
+				StatusMasuk:     status,
+				StatusPulang:    status,
+			}
+			h.kehadiranRepo.Create(k)
 		}
-
-		k := model.Kehadiran{
-			ASNID:           izin.ASNID,
-			PerizinanCutiID: &izin.ID,
-			JadwalID:        jadwalID,
-			Tanggal:         d.Format("2006-01-02"),
-			Tahun:           d.Format("2006"),
-			Bulan:           d.Format("01"),
-			StatusMasuk:     status, // Ini yang nanti dicek saat Check-in
-			StatusPulang:    status,
-		}
-		listKehadiran = append(listKehadiran, k)
-	}
-
-	// Simpan sekaligus banyak
-	if len(listKehadiran) > 0 {
-		h.kehadiranRepo.CreateMany(listKehadiran)
 	}
 }

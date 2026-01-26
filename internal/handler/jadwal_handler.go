@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"my-flutter-backend/internal/model"
 	"my-flutter-backend/internal/repository"
 	"strconv"
@@ -48,11 +49,11 @@ func (h *JadwalHandler) CreateJadwal(c *fiber.Ctx) error {
 }
 
 type GenerateJadwalRequest struct {
-	ASNIDs  []uint `json:"asn_ids"` // UBAH: Array of ID (Checkbox)
-	ShiftID uint   `json:"shift_id"`
-	Bulan   int    `json:"bulan"`
-	Tahun   int    `json:"tahun"`
-	Days    []int  `json:"days"` // 0=Minggu, 1=Senin, ..., 6=Sabtu
+	ASNIDs         []uint `json:"asn_ids"` // UBAH: Array of ID (Checkbox)
+	ShiftID        uint   `json:"shift_id"`
+	TanggalMulai   string `json:"tanggal_mulai"`
+	TanggalSelesai string `json:"tanggal_selesai"`
+	Days           []int  `json:"days"` // 0=Minggu, 1=Senin, ..., 6=Sabtu
 }
 
 func (h *JadwalHandler) GenerateJadwalBulanan(c *fiber.Ctx) error {
@@ -63,10 +64,14 @@ func (h *JadwalHandler) GenerateJadwalBulanan(c *fiber.Ctx) error {
 
 	var listJadwal []model.Jadwal
 
-	// Tentukan tanggal awal bulan
-	startDate := time.Date(req.Tahun, time.Month(req.Bulan), 1, 0, 0, 0, 0, time.Local)
-	// Tentukan tanggal akhir bulan (tanggal 0 bulan berikutnya = tanggal terakhir bulan ini)
-	endDate := startDate.AddDate(0, 1, -1)
+	startDate, err := time.Parse("2006-01-02", req.TanggalMulai)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format tanggal mulai salah"})
+	}
+	endDate, err := time.Parse("2006-01-02", req.TanggalSelesai)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format tanggal selesai salah"})
+	}
 
 	// Loop untuk setiap Pegawai yang dipilih
 	for _, asnID := range req.ASNIDs {
@@ -262,4 +267,155 @@ func (h *JadwalHandler) DeleteJadwalByDate(c *fiber.Ctx) error {
 
 	h.repo.DeleteByDate(tanggal, orgID)
 	return c.JSON(fiber.Map{"message": "Semua jadwal pada tanggal tersebut berhasil dihapus"})
+}
+
+func (h *JadwalHandler) GetDashboardStats(c *fiber.Ctx) error {
+	orgID := uint(c.Locals("organisasi_id").(float64))
+
+	// Filter Bulan & Tahun
+	now := time.Now()
+	bulan := c.Query("bulan")
+	if bulan == "" {
+		bulan = now.Format("01")
+	} else if len(bulan) == 1 {
+		bulan = "0" + bulan
+	}
+
+	tahun := c.Query("tahun")
+	if tahun == "" {
+		tahun = now.Format("2006")
+	}
+
+	today := now.Format("2006-01-02")
+
+	// 1. Ambil Semua Jadwal Bulan Ini
+	// Pastikan repository memiliki method GetByMonth(bulan, tahun, orgID)
+	jadwals, err := h.repo.GetByMonth(bulan, tahun, orgID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data jadwal"})
+	}
+
+	// 2. Ambil Semua Kehadiran Bulan Ini
+	// Pastikan repository memiliki method GetByMonthAndOrg(bulan, tahun, orgID)
+	kehadirans, err := h.kehadiranRepo.GetByMonthAndOrg(bulan, tahun, orgID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data kehadiran"})
+	}
+
+	// Map Kehadiran by JadwalID untuk akses cepat
+	attendanceMap := make(map[uint]model.Kehadiran)
+	for _, k := range kehadirans {
+		if k.JadwalID != 0 {
+			attendanceMap[k.JadwalID] = k
+		}
+	}
+
+	// Inisialisasi Counters
+	// Gunakan variabel terpisah agar mudah dihitung
+	totalJadwal := len(jadwals)
+	hadir := 0
+	tlCp := 0
+	tlCpIzin := 0
+	izin := 0
+	cuti := 0
+	alfa := 0
+	belumAbsen := 0
+
+	statsHari := map[string]int{"hadir_tepat_waktu": 0, "tl_cp": 0, "tl_cp_diizinkan": 0, "izin": 0, "cuti": 0, "alfa": 0, "belum_absen": 0}
+
+	var details []fiber.Map
+
+	for _, j := range jadwals {
+		k, exists := attendanceMap[j.ID]
+
+		// Tentukan status untuk detail list
+		statusMasuk := "BELUM_ABSEN"
+		statusPulang := ""
+
+		if exists {
+			statusMasuk = k.StatusMasuk
+			statusPulang = k.StatusPulang
+
+			if k.StatusMasuk == "IZIN" {
+				izin++
+			} else if k.StatusMasuk == "CUTI" {
+				cuti++
+			} else if k.StatusMasuk == "TERLAMBAT" || k.StatusPulang == "PULANG_CEPAT" {
+				if k.PerizinanKehadiranID != nil {
+					tlCpIzin++
+				} else {
+					tlCp++
+				}
+			} else {
+				hadir++
+			}
+		} else {
+			if j.Tanggal < today {
+				statusMasuk = "ALFA"
+				alfa++
+			} else {
+				belumAbsen++
+			}
+		}
+
+		// Tambahkan ke detail list untuk grafik harian
+		details = append(details, fiber.Map{
+			"tanggal":       j.Tanggal,
+			"status_masuk":  statusMasuk,
+			"status_pulang": statusPulang,
+		})
+
+		// Hitung Statistik Harian (Hanya jika tanggal jadwal == hari ini)
+		if j.Tanggal == today {
+			if exists {
+				if k.StatusMasuk == "IZIN" {
+					statsHari["izin"]++
+				} else if k.StatusMasuk == "CUTI" {
+					statsHari["cuti"]++
+				} else if k.StatusMasuk == "TERLAMBAT" || k.StatusPulang == "PULANG_CEPAT" {
+					if k.PerizinanKehadiranID != nil {
+						statsHari["tl_cp_diizinkan"]++
+					} else {
+						statsHari["tl_cp"]++
+					}
+				} else {
+					statsHari["hadir_tepat_waktu"]++
+				}
+			} else {
+				statsHari["belum_absen"]++
+			}
+		}
+	}
+
+	// Hitung Persentase Kehadiran Bulanan (Hadir + TL/CP) / (Total Jadwal - Belum Absen)
+	totalSudahLewat := totalJadwal - belumAbsen
+	persentaseHadir := 0.0
+	if totalSudahLewat > 0 {
+		hadirCount := hadir + tlCp + tlCpIzin
+		persentaseHadir = (float64(hadirCount) / float64(totalSudahLewat)) * 100
+	}
+
+	// Nama Bulan untuk Meta
+	mInt, _ := strconv.Atoi(bulan)
+	monthName := time.Month(mInt).String()
+
+	return c.JSON(fiber.Map{
+		"bulan_ini": fiber.Map{
+			"total_jadwal":      totalJadwal,
+			"hadir_tepat_waktu": hadir,
+			"tl_cp":             tlCp,
+			"tl_cp_diizinkan":   tlCpIzin,
+			"izin":              izin,
+			"cuti":              cuti,
+			"alfa":              alfa,
+			"belum_absen":       belumAbsen,
+			"detail":            details,
+		},
+		"hari_ini":         statsHari,
+		"persentase_hadir": fmt.Sprintf("%.1f", persentaseHadir),
+		"meta": fiber.Map{
+			"bulan": monthName,
+			"tahun": tahun,
+		},
+	})
 }
