@@ -16,7 +16,7 @@ func SetupOrganisasiRoutes(app *fiber.App, db *gorm.DB) {
 	api := app.Group("/api/admin/organisasi", middleware.Auth, middleware.Role("Admin"))
 
 	api.Get("/", hdl.GetInfo)
-	api.Put("/", hdl.UpdateInfo)
+	api.Put("/", hdl.UpdateOrganisasi)          // Update Info Organisasi (Nama & Email)
 	api.Post("/lokasi", hdl.AddLokasi)          // Tambah Lokasi Baru
 	api.Put("/lokasi/:id", hdl.UpdateLokasi)    // Update Lokasi
 	api.Delete("/lokasi/:id", hdl.DeleteLokasi) // Hapus Lokasi

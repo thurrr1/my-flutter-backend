@@ -27,25 +27,33 @@ func (h *OrganisasiHandler) GetInfo(c *fiber.Ctx) error {
 
 type UpdateOrganisasiRequest struct {
 	NamaOrganisasi string `json:"nama_organisasi"`
+	EmailAdmin     string `json:"email_admin"`
 }
 
-func (h *OrganisasiHandler) UpdateInfo(c *fiber.Ctx) error {
+func (h *OrganisasiHandler) UpdateOrganisasi(c *fiber.Ctx) error {
+	// Ambil ID Organisasi dari token Admin yang login
+	orgID := uint(c.Locals("organisasi_id").(float64))
+
 	var req UpdateOrganisasiRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
 	}
 
-	org, err := h.repo.GetFirst()
+	org, err := h.repo.GetByID(orgID)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Organisasi tidak ditemukan"})
 	}
 
-	org.NamaOrganisasi = req.NamaOrganisasi
+	if req.NamaOrganisasi != "" {
+		org.NamaOrganisasi = req.NamaOrganisasi
+	}
+	org.EmailAdmin = req.EmailAdmin // Email boleh kosong/diupdate
+
 	if err := h.repo.Update(org); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal update organisasi"})
 	}
 
-	return c.JSON(fiber.Map{"message": "Data organisasi berhasil diupdate", "data": org})
+	return c.JSON(fiber.Map{"message": "Informasi organisasi berhasil diperbarui", "data": org})
 }
 
 type UpdateLokasiRequest struct {

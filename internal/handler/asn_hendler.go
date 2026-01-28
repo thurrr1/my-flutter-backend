@@ -1,14 +1,18 @@
 package handler
 
 import (
+	"fmt"
+	"math/rand"
 	"my-flutter-backend/internal/model"
 	"my-flutter-backend/internal/repository"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"gopkg.in/gomail.v2"
 )
 
 type ASNHandler struct {
@@ -329,6 +333,44 @@ func (h *ASNHandler) CreateASN(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Pegawai berhasil ditambahkan", "data": asn})
 }
 
+func (h *ASNHandler) ImportASN(c *fiber.Ctx) error {
+	orgID := uint(c.Locals("organisasi_id").(float64))
+	var reqs []CreateASNRequest
+	if err := c.BodyParser(&reqs); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format data tidak valid"})
+	}
+
+	successCount := 0
+	for _, req := range reqs {
+		// Skip jika NIP kosong
+		if req.NIP == "" {
+			continue
+		}
+
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+
+		asn := model.ASN{
+			Nama:         req.Nama,
+			NIP:          req.NIP,
+			Password:     string(hashedPassword),
+			Jabatan:      req.Jabatan,
+			Bidang:       req.Bidang,
+			RoleID:       req.RoleID,
+			OrganisasiID: orgID,
+			IsActive:     true,
+			Email:        req.Email,
+			NoHP:         req.NoHP,
+		}
+
+		// Abaikan error duplicate entry agar proses tetap lanjut untuk data lain
+		if err := h.repo.Create(&asn); err == nil {
+			successCount++
+		}
+	}
+
+	return c.JSON(fiber.Map{"message": fmt.Sprintf("Berhasil mengimport %d data pegawai", successCount)})
+}
+
 func (h *ASNHandler) UpdateASN(c *fiber.Ctx) error {
 	id, _ := strconv.Atoi(c.Params("id"))
 	var req model.ASN
@@ -362,6 +404,39 @@ func (h *ASNHandler) DeleteASN(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menghapus pegawai"})
 	}
 	return c.JSON(fiber.Map{"message": "Pegawai berhasil dihapus"})
+}
+
+type ResetPasswordRequest struct {
+	NewPassword string `json:"new_password"`
+}
+
+func (h *ASNHandler) ResetUserPassword(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+	var req ResetPasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	if len(req.NewPassword) < 6 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Password minimal 6 karakter"})
+	}
+
+	asn, err := h.repo.FindByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pegawai tidak ditemukan"})
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengenkripsi password"})
+	}
+
+	asn.Password = string(hashedPassword)
+	if err := h.repo.Update(asn); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal reset password"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Password berhasil di-reset"})
 }
 
 func (h *ASNHandler) ResetDevice(c *fiber.Ctx) error {
@@ -457,4 +532,166 @@ func generateTokens(asn *model.ASN) (string, string, error) {
 
 	// Pastikan key "rahasia_negara" ini SAMA dengan yang ada di auth_middleware.go
 	return accessTokenString, refreshTokenString, err
+}
+
+// --- FITUR LUPA PASSWORD (OTP) ---
+
+var (
+	otpStore = make(map[string]OTPData)
+	otpMutex sync.Mutex
+)
+
+type OTPData struct {
+	Code      string
+	ExpiresAt time.Time
+}
+
+type ForgotPasswordRequest struct {
+	NIP string `json:"nip"`
+}
+
+func (h *ASNHandler) RequestOTP(c *fiber.Ctx) error {
+	var req ForgotPasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	// 1. Cari ASN
+	asn, err := h.repo.FindByNIP(req.NIP)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "NIP tidak ditemukan"})
+	}
+
+	// 2. Cek Email
+	if asn.Email == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Email tidak terdaftar. Silakan hubungi Admin untuk update data."})
+	}
+
+	// 3. Generate OTP (6 Digit)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	otp := fmt.Sprintf("%06d", rng.Intn(1000000))
+
+	// 4. Simpan OTP (In-Memory)
+	otpMutex.Lock()
+	otpStore[req.NIP] = OTPData{
+		Code:      otp,
+		ExpiresAt: time.Now().Add(5 * time.Minute), // Berlaku 5 menit
+	}
+	otpMutex.Unlock()
+
+	// 5. Kirim Email Menggunakan Gomail
+	if err := sendOTPEmail(asn.Email, asn.Nama, otp); err != nil {
+		fmt.Printf("Error sending email: %v\n", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengirim email OTP. Cek log server."})
+	}
+
+	// Masking email untuk response ke frontend
+	maskedEmail := asn.Email
+	if len(asn.Email) > 3 {
+		maskedEmail = asn.Email[:3] + "****" + asn.Email[len(asn.Email)-4:]
+	}
+
+	return c.JSON(fiber.Map{
+		"message": fmt.Sprintf("Kode OTP telah dikirim ke email %s", maskedEmail),
+	})
+}
+
+// Helper function untuk mengirim email menggunakan SMTP (Gomail)
+func sendOTPEmail(toEmail, namaUser, otpCode string) error {
+	// KONFIGURASI SMTP (Ganti dengan kredensial asli atau ambil dari ENV)
+	// Jika menggunakan Gmail, pastikan menggunakan "App Password", bukan password login biasa.
+	smtpHost := "smtp.gmail.com"
+	smtpPort := 587
+	smtpUser := "rahmanthur1@gmail.com" // GANTI DENGAN EMAIL PENGIRIM
+	smtpPass := "jtso acbi quto aenp"   // GANTI DENGAN APP PASSWORD
+
+	m := gomail.NewMessage()
+	m.SetHeader("From", smtpUser)
+	m.SetHeader("To", toEmail)
+	m.SetHeader("Subject", "Kode OTP Reset Password")
+	m.SetBody("text/html", fmt.Sprintf(`
+		<h3>Halo %s,</h3>
+		<p>Anda melakukan permintaan reset password. Berikut adalah kode OTP Anda:</p>
+		<h1 style="color: #3b82f6; letter-spacing: 5px;">%s</h1>
+		<p>Kode ini berlaku selama 5 menit. Jangan berikan kepada siapapun.</p>
+		<p>Jika ini bukan Anda, abaikan email ini.</p>
+	`, namaUser, otpCode))
+
+	d := gomail.NewDialer(smtpHost, smtpPort, smtpUser, smtpPass)
+	return d.DialAndSend(m)
+}
+
+type VerifyOTPRequest struct {
+	NIP string `json:"nip"`
+	OTP string `json:"otp"`
+}
+
+func (h *ASNHandler) VerifyOTP(c *fiber.Ctx) error {
+	var req VerifyOTPRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	otpMutex.Lock()
+	data, exists := otpStore[req.NIP]
+	otpMutex.Unlock()
+
+	if !exists || time.Now().After(data.ExpiresAt) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Kode OTP kadaluwarsa atau tidak valid"})
+	}
+
+	if data.Code != req.OTP {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Kode OTP salah"})
+	}
+
+	return c.JSON(fiber.Map{"message": "OTP Valid"})
+}
+
+type ResetPasswordFinalRequest struct {
+	NIP         string `json:"nip"`
+	OTP         string `json:"otp"`
+	NewPassword string `json:"new_password"`
+}
+
+func (h *ASNHandler) ResetPasswordFinal(c *fiber.Ctx) error {
+	var req ResetPasswordFinalRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	// Validasi OTP lagi sebelum reset (Stateless Security)
+	otpMutex.Lock()
+	data, exists := otpStore[req.NIP]
+	otpMutex.Unlock()
+
+	if !exists || time.Now().After(data.ExpiresAt) || data.Code != req.OTP {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Sesi OTP tidak valid, silakan ulangi permintaan OTP"})
+	}
+
+	if len(req.NewPassword) < 6 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Password minimal 6 karakter"})
+	}
+
+	// Update Password
+	asn, err := h.repo.FindByNIP(req.NIP)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pegawai tidak ditemukan"})
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengenkripsi password"})
+	}
+
+	asn.Password = string(hashedPassword)
+	if err := h.repo.Update(asn); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal reset password"})
+	}
+
+	// Hapus OTP agar tidak bisa dipakai lagi
+	otpMutex.Lock()
+	delete(otpStore, req.NIP)
+	otpMutex.Unlock()
+
+	return c.JSON(fiber.Map{"message": "Password berhasil diubah. Silakan login kembali."})
 }

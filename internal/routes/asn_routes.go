@@ -17,6 +17,11 @@ func SetupASNRoutes(app *fiber.App, db *gorm.DB) {
 	app.Post("/api/login", hdl.Login)
 	app.Post("/api/refresh-token", hdl.RefreshToken)
 
+	// Forgot Password Routes (Mobile Flow)
+	app.Post("/api/forgot-password/request", hdl.RequestOTP)       // 1. Cek NIP & Email -> Kirim OTP
+	app.Post("/api/forgot-password/verify", hdl.VerifyOTP)         // 2. Cek OTP -> Lanjut ke halaman password baru
+	app.Post("/api/forgot-password/reset", hdl.ResetPasswordFinal) // 3. Submit Password Baru
+
 	// Profile Routes (Protected)
 	api := app.Group("/api/asn", middleware.Auth)
 	api.Get("/profile", hdl.GetProfile)
@@ -30,7 +35,9 @@ func SetupASNRoutes(app *fiber.App, db *gorm.DB) {
 	admin.Get("/", hdl.GetAll)
 	admin.Get("/:id", hdl.GetASNDetail) // Route baru untuk detail
 	admin.Post("/", hdl.CreateASN)
+	admin.Post("/import", hdl.ImportASN) // Route Import Excel
 	admin.Put("/:id", hdl.UpdateASN)
+	admin.Put("/:id/reset-password", hdl.ResetUserPassword) // Route reset password (Lupa Password)
 	admin.Delete("/:id", hdl.DeleteASN)
 	admin.Delete("/:id/device", hdl.ResetDevice)
 }

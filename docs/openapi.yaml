@@ -137,6 +137,63 @@ paths:
           description: Password berhasil diubah
 
   # =======================
+  # LUPA PASSWORD (OTP)
+  # =======================
+  /api/forgot-password/request:
+    post:
+      summary: Request OTP Reset Password
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nip: { type: string }
+      responses:
+        200:
+          description: OTP dikirim ke email
+
+  /api/forgot-password/verify:
+    post:
+      summary: Verifikasi Kode OTP
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nip: { type: string }
+                otp: { type: string }
+      responses:
+        200:
+          description: OTP Valid
+
+  /api/forgot-password/reset:
+    post:
+      summary: Reset Password Baru
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nip: { type: string }
+                otp: { type: string }
+                new_password: { type: string }
+      responses:
+        200:
+          description: Password berhasil diubah
+
+  # =======================
   # KEHADIRAN (ABSENSI)
   # =======================
   /api/kehadiran/checkin:
