@@ -52,6 +52,12 @@ paths:
     get:
       summary: Get All Pegawai (Filtered by Admin Organization)
       tags: [Pegawai]
+      parameters:
+        - in: query
+          name: search
+          required: false
+          schema: { type: string }
+          description: "Search by Nama or NIP"
       responses:
         '200':
           description: List pegawai
@@ -124,6 +130,26 @@ paths:
       responses:
         '200':
           description: Pegawai deleted
+
+  /api/admin/asn/{id}/reset-password:
+    put:
+      summary: Reset Password Pegawai (Admin Manual)
+      tags: [Pegawai]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                new_password: { type: string }
+      responses:
+        '200':
+          description: Password reset successful
 
   /api/admin/asn/{id}/device:
     delete:
@@ -226,6 +252,11 @@ paths:
           name: tanggal
           required: true
           schema: { type: string, format: date, example: "2024-10-25" }
+        - in: query
+          name: search
+          required: false
+          schema: { type: string }
+          description: "Search by Nama or NIP"
       responses:
         '200':
           description: List jadwal pada tanggal tersebut
@@ -244,6 +275,28 @@ paths:
       responses:
         '200':
           description: Jadwal created
+
+  /api/admin/jadwal/import:
+    post:
+      summary: Import Jadwal from Excel Data
+      tags: [Jadwal]
+      requestBody:
+        description: Array of schedule items parsed from Excel
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  nip: { type: string }
+                  tanggal: { type: string, format: date }
+                  jam_masuk: { type: string, example: "08:00" }
+                  jam_pulang: { type: string, example: "16:00" }
+                  is_active: { type: boolean }
+      responses:
+        '200':
+          description: Import successful
 
   /api/admin/jadwal/generate:
     post:
@@ -315,6 +368,7 @@ paths:
               type: object
               properties:
                 shift_id: { type: integer }
+                is_active: { type: boolean }
       responses:
         '200':
           description: Jadwal updated
@@ -578,3 +632,53 @@ paths:
       responses:
         '200':
           description: Banner deactivated
+
+  # --- PERIZINAN & APPROVAL ---
+  /api/perizinan/bawahan:
+    get:
+      summary: Get List Pengajuan Izin Bawahan (For Approval)
+      tags: [Perizinan]
+      responses:
+        '200':
+          description: List pengajuan izin
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ID: { type: integer }
+                        asn_id: { type: integer }
+                        tipe: { type: string, example: "CUTI" }
+                        jenis: { type: string, example: "TAHUNAN" }
+                        tanggal_mulai: { type: string, format: date }
+                        tanggal_selesai: { type: string, format: date }
+                        alasan: { type: string }
+                        status: { type: string, example: "MENUNGGU" }
+                        path_file: { type: string }
+                        asn:
+                          type: object
+                          properties:
+                            nama: { type: string }
+                            nip: { type: string }
+
+  /api/perizinan/approval:
+    post:
+      summary: Approve or Reject Pengajuan Izin
+      tags: [Perizinan]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                perizinan_id: { type: integer }
+                status: { type: string, enum: ["DISETUJUI", "DITOLAK"] }
+      responses:
+        '200':
+          description: Status updated

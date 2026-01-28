@@ -6,9 +6,10 @@ import (
 
 type Jadwal struct {
 	gorm.Model
-	ASNID   uint   `json:"asn_id"`
-	ShiftID uint   `json:"shift_id"`
-	Tanggal string `json:"tanggal"`
+	ASNID    uint   `json:"asn_id"`
+	ShiftID  uint   `json:"shift_id"`
+	Tanggal  string `json:"tanggal"`
+	IsActive bool   `json:"is_active"`
 
 	// Relasi
 	Shift Shift `gorm:"foreignKey:ShiftID" json:"shift"`

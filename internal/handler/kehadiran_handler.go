@@ -109,33 +109,44 @@ func (h *KehadiranHandler) CheckOut(c *fiber.Ctx) error {
 	asnID := uint(c.Locals("user_id").(float64))
 	orgID := uint(c.Locals("organisasi_id").(float64))
 
-	var req CheckInRequest // Kita pakai struct request yang sama (butuh koordinat)
+	var req CheckInRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
 	}
 
-	// 2. Cek Apakah Sudah Check-in Hari Ini
-	kehadiran, err := h.repo.GetTodayAttendance(asnID)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Anda belum melakukan Check-in hari ini"})
+	// 2. Cek Apakah Sudah Check-in di HARI INI
+	var attendance *model.Kehadiran
+	attendance, err := h.repo.GetTodayAttendance(asnID)
+
+	// Jika tidak ada check-in hari ini, CEK KEMARIN (Logic Lintas Hari)
+	if err != nil || attendance == nil {
+		yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+		prevAttendance, errPrev := h.repo.GetByDate(asnID, yesterday)
+
+		// Jika kemarin ada check-in DAN belum check-out -> Kita anggap ini checkout untuk shift kemarin
+		if errPrev == nil && prevAttendance != nil && prevAttendance.JamPulangReal == "" {
+			attendance = prevAttendance
+		} else {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Anda belum melakukan Check-in (Hari ini maupun Shift kemarin)"})
+		}
 	}
 
-	if kehadiran.StatusMasuk == "IZIN" || kehadiran.StatusMasuk == "CUTI" {
+	if attendance.StatusMasuk == "IZIN" || attendance.StatusMasuk == "CUTI" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Anda sedang Cuti/Izin, tidak perlu Check-out"})
 	}
 
-	if kehadiran.JamPulangReal != "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Anda sudah melakukan Check-out hari ini"})
+	if attendance.JamPulangReal != "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Anda sudah melakukan Check-out"})
 	}
 
-	// 3. Ambil Jadwal Hari Ini (Untuk Cek Shift Pulang)
-	now := time.Now()
-	jadwal, err := h.jadwalRepo.GetByASNAndDate(asnID, now.Format("2006-01-02"))
+	// 3. Ambil Jadwal Sesuai Tanggal Absensi (Penting untuk Shift Lintas Hari)
+	// Kita gunakan tanggal dari record attendance, BUKAN time.Now()
+	jadwal, err := h.jadwalRepo.GetByASNAndDate(asnID, attendance.Tanggal)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Jadwal kerja hari ini tidak ditemukan."})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Jadwal kerja tidak ditemukan."})
 	}
 
-	// 3. Validasi Lokasi (Sama seperti Check-in)
+	// 4. Validasi Lokasi
 	lokasiKantor, err := h.asnRepo.GetLokasiByOrganisasiID(orgID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Lokasi kantor tidak ditemukan"})
@@ -143,38 +154,50 @@ func (h *KehadiranHandler) CheckOut(c *fiber.Ctx) error {
 
 	jarak := calculateDistance(req.Latitude, req.Longitude, lokasiKantor.Latitude, lokasiKantor.Longitude)
 
-	// 4. Update Data Pulang
-	kehadiran.JamPulangReal = now.Format("15:04:05")
-	kehadiran.KoordinatPulang = fmt.Sprintf("%f,%f", req.Latitude, req.Longitude)
+	// 5. Update Data Pulang
+	now := time.Now()
+	attendance.JamPulangReal = now.Format("15:04:05")
+	attendance.KoordinatPulang = fmt.Sprintf("%f,%f", req.Latitude, req.Longitude)
 
-	// Tentukan Status Pulang (PULANG / PULANG_CEPAT)
-	statusPulang := "PULANG"
+	// Tentukan Status Pulang
+	// Perbandingan waktu harus MEMPERHATIKAN TANGGAL
+	// Parse Jam Pulang Shift
 	jamPulangShift, _ := time.Parse("15:04", jadwal.Shift.JamPulang)
-	// Gabungkan dengan tanggal hari ini
-	waktuPulangShift := time.Date(now.Year(), now.Month(), now.Day(), jamPulangShift.Hour(), jamPulangShift.Minute(), 0, 0, now.Location())
 
+	// Konstruksi Waktu Pulang Seharusnya
+	// Default: Tanggal sama dengan Tanggal Jadwal
+	tglJadwal, _ := time.Parse("2006-01-02", attendance.Tanggal)
+	waktuPulangShift := time.Date(tglJadwal.Year(), tglJadwal.Month(), tglJadwal.Day(), jamPulangShift.Hour(), jamPulangShift.Minute(), 0, 0, time.Local)
+
+	// Logic Cross-Day: Jika Jam Pulang < Jam Masuk (secara jam), berarti shift berakhir di hari berikutnya (H+1)
+	jamMasukShift, _ := time.Parse("15:04", jadwal.Shift.JamMasuk)
+	if jamPulangShift.Before(jamMasukShift) {
+		waktuPulangShift = waktuPulangShift.AddDate(0, 0, 1) // Tambah 1 hari
+	}
+
+	// Bandingkan Now dengan Waktu Pulang Seharusnya
+	statusPulang := "PULANG"
 	if now.Before(waktuPulangShift) {
 		statusPulang = "PULANG_CEPAT"
 	}
-	kehadiran.StatusPulang = statusPulang
+	attendance.StatusPulang = statusPulang
 
 	// Validasi Radius Pulang
-	kehadiran.StatusLokasiPulang = "VALID"
+	attendance.StatusLokasiPulang = "VALID"
 	if jarak > float64(lokasiKantor.RadiusMeter) {
-		// Kebijakan: Apakah boleh checkout di luar radius?
-		// Biasanya boleh tapi statusnya INVALID atau butuh keterangan.
-		kehadiran.StatusLokasiPulang = "INVALID"
+		attendance.StatusLokasiPulang = "INVALID"
 	}
 
-	if err := h.repo.Update(kehadiran); err != nil {
+	if err := h.repo.Update(attendance); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menyimpan data pulang"})
 	}
 
 	return c.JSON(fiber.Map{
-		"message": "Check-out berhasil",
-		"status":  statusPulang,
-		"waktu":   kehadiran.JamPulangReal,
-		"jarak":   jarak,
+		"message":       "Check-out berhasil",
+		"status":        statusPulang,
+		"waktu":         attendance.JamPulangReal,
+		"jarak":         jarak,
+		"tanggal_absen": attendance.Tanggal,
 	})
 }
 

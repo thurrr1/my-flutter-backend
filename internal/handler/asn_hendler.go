@@ -264,8 +264,9 @@ func (h *ASNHandler) ChangePassword(c *fiber.Ctx) error {
 func (h *ASNHandler) GetAll(c *fiber.Ctx) error {
 	// Ambil Organisasi ID dari user yang login (Admin)
 	orgID := uint(c.Locals("organisasi_id").(float64))
+	search := c.Query("search")
 
-	asns, err := h.repo.GetAll()
+	asns, err := h.repo.GetAll(search)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data pegawai"})
 	}

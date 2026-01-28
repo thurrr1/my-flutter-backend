@@ -11,16 +11,19 @@ import (
 
 func SetupJadwalRoutes(app *fiber.App, db *gorm.DB) {
 	repo := repository.NewJadwalRepository(db)
-	hlRepo := repository.NewHariLiburRepository(db) // Tambah ini
+	hlRepo := repository.NewHariLiburRepository(db)
 	kehadiranRepo := repository.NewKehadiranRepository(db)
-	hdl := handler.NewJadwalHandler(repo, hlRepo, kehadiranRepo)
+	shiftRepo := repository.NewShiftRepository(db)
+	asnRepo := repository.NewASNRepository(db) // Tambah ini
+	hdl := handler.NewJadwalHandler(repo, hlRepo, kehadiranRepo, shiftRepo, asnRepo)
 
 	api := app.Group("/api/admin", middleware.Auth, middleware.Role("Admin"))
 
-	api.Get("/jadwal", hdl.GetJadwalHarian)     // Lihat per tanggal
+	api.Get("/jadwal", hdl.GetJadwalHarian)                   // Lihat per tanggal
 	api.Get("/jadwal/dashboard-stats", hdl.GetDashboardStats) // PENTING: Taruh ini SEBELUM :id
-	api.Get("/jadwal/:id", hdl.GetJadwalDetail) // Detail untuk Edit
-	api.Post("/jadwal", hdl.CreateJadwal)       // Buat manual satu
+	api.Get("/jadwal/:id", hdl.GetJadwalDetail)               // Detail untuk Edit
+	api.Post("/jadwal", hdl.CreateJadwal)                     // Buat manual satu
+	api.Post("/jadwal/import", hdl.ImportJadwal)              // Import Excel
 	api.Post("/jadwal/generate", hdl.GenerateJadwalBulanan)
 	api.Post("/jadwal/generate-daily", hdl.GenerateJadwalHarian) // Bulk Harian
 	api.Put("/jadwal/:id", hdl.UpdateJadwal)                     // Edit Shift

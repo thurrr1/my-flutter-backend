@@ -14,7 +14,7 @@ type ASNRepository interface {
 	Update(asn *model.ASN) error
 	Delete(id uint) error
 	AddDevice(device *model.Device) error
-	GetAll() ([]model.ASN, error)
+	GetAll(search string) ([]model.ASN, error)
 	ResetDevice(asnID uint) error
 	Count() (int64, error)
 	GetByPermission(permissionName string) ([]model.ASN, error)
@@ -63,9 +63,16 @@ func (r *asnRepository) AddDevice(device *model.Device) error {
 	return r.db.Create(device).Error
 }
 
-func (r *asnRepository) GetAll() ([]model.ASN, error) {
+func (r *asnRepository) GetAll(search string) ([]model.ASN, error) {
 	var asns []model.ASN
-	err := r.db.Preload("Role").Preload("Organisasi").Find(&asns).Error
+	query := r.db.Preload("Role").Preload("Organisasi")
+
+	if search != "" {
+		searchPattern := "%" + search + "%"
+		query = query.Where("nama LIKE ? OR nip LIKE ?", searchPattern, searchPattern)
+	}
+
+	err := query.Find(&asns).Error
 	return asns, err
 }
 

@@ -14,10 +14,12 @@ type JadwalHandler struct {
 	repo          repository.JadwalRepository
 	hariLiburRepo repository.HariLiburRepository // Tambah ini
 	kehadiranRepo repository.KehadiranRepository
+	shiftRepo     repository.ShiftRepository
+	asnRepo       repository.ASNRepository
 }
 
-func NewJadwalHandler(repo repository.JadwalRepository, hlRepo repository.HariLiburRepository, kRepo repository.KehadiranRepository) *JadwalHandler {
-	return &JadwalHandler{repo: repo, hariLiburRepo: hlRepo, kehadiranRepo: kRepo}
+func NewJadwalHandler(repo repository.JadwalRepository, hlRepo repository.HariLiburRepository, kRepo repository.KehadiranRepository, sRepo repository.ShiftRepository, aRepo repository.ASNRepository) *JadwalHandler {
+	return &JadwalHandler{repo: repo, hariLiburRepo: hlRepo, kehadiranRepo: kRepo, shiftRepo: sRepo, asnRepo: aRepo}
 }
 
 type CreateJadwalRequest struct {
@@ -33,13 +35,14 @@ func (h *JadwalHandler) CreateJadwal(c *fiber.Ctx) error {
 	}
 
 	jadwal := model.Jadwal{
-		ASNID:   req.ASNID,
-		ShiftID: req.ShiftID,
-		Tanggal: req.Tanggal,
+		ASNID:    req.ASNID,
+		ShiftID:  req.ShiftID,
+		Tanggal:  req.Tanggal,
+		IsActive: true,
 	}
 
-	if err := h.repo.Create(&jadwal); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal membuat jadwal"})
+	if err := h.repo.Upsert(&jadwal); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menyimpan jadwal"})
 	}
 
 	return c.JSON(fiber.Map{
@@ -96,17 +99,21 @@ func (h *JadwalHandler) GenerateJadwalBulanan(c *fiber.Ctx) error {
 			}
 
 			jadwal := model.Jadwal{
-				ASNID:   asnID,
-				ShiftID: req.ShiftID,
-				Tanggal: d.Format("2006-01-02"),
+				ASNID:    asnID,
+				ShiftID:  req.ShiftID,
+				Tanggal:  d.Format("2006-01-02"),
+				IsActive: true,
 			}
 			listJadwal = append(listJadwal, jadwal)
 		}
 	}
 
 	if len(listJadwal) > 0 {
-		if err := h.repo.CreateMany(listJadwal); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal generate jadwal"})
+		countSuccess := 0
+		for _, j := range listJadwal {
+			if err := h.repo.Upsert(&j); err == nil {
+				countSuccess++
+			}
 		}
 	}
 
@@ -131,19 +138,67 @@ func (h *JadwalHandler) GenerateJadwalHarian(c *fiber.Ctx) error {
 	var listJadwal []model.Jadwal
 	for _, asnID := range req.ASNIDs {
 		jadwal := model.Jadwal{
-			ASNID:   asnID,
-			ShiftID: req.ShiftID,
-			Tanggal: req.Tanggal,
+			ASNID:    asnID,
+			ShiftID:  req.ShiftID,
+			Tanggal:  req.Tanggal,
+			IsActive: true,
 		}
 		listJadwal = append(listJadwal, jadwal)
 	}
 
 	if len(listJadwal) > 0 {
-		if err := h.repo.CreateMany(listJadwal); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal membuat jadwal harian"})
+		for _, j := range listJadwal {
+			h.repo.Upsert(&j)
 		}
 	}
 	return c.JSON(fiber.Map{"message": "Berhasil membuat jadwal harian"})
+}
+
+type ImportJadwalItem struct {
+	NIP       string `json:"nip"`
+	Tanggal   string `json:"tanggal"`    // YYYY-MM-DD
+	JamMasuk  string `json:"jam_masuk"`  // HH:mm
+	JamPulang string `json:"jam_pulang"` // HH:mm
+	IsActive  bool   `json:"is_active"`
+}
+
+func (h *JadwalHandler) ImportJadwal(c *fiber.Ctx) error {
+	var reqs []ImportJadwalItem
+	if err := c.BodyParser(&reqs); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format data tidak valid"})
+	}
+
+	countSuccess := 0
+
+	for _, item := range reqs {
+		// 1. Cari ASN by NIP
+		asn, err := h.asnRepo.FindByNIP(item.NIP)
+		if err != nil {
+			continue // Skip jika NIP tidak ditemukan
+		}
+
+		// 2. Find Or Create Shift
+		shift, err := h.shiftRepo.FindOrCreate(item.JamMasuk, item.JamPulang)
+		if err != nil {
+			continue // Skip jika gagal buat/cari shift
+		}
+
+		// 3. Upsert Jadwal
+		jadwal := model.Jadwal{
+			ASNID:    asn.ID,
+			ShiftID:  shift.ID,
+			Tanggal:  item.Tanggal,
+			IsActive: item.IsActive,
+		}
+
+		if err := h.repo.Upsert(&jadwal); err == nil {
+			countSuccess++
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"message": fmt.Sprintf("Berhasil import %d jadwal", countSuccess),
+	})
 }
 
 type JadwalWithStatus struct {
@@ -157,12 +212,13 @@ type JadwalWithStatus struct {
 func (h *JadwalHandler) GetJadwalHarian(c *fiber.Ctx) error {
 	orgID := uint(c.Locals("organisasi_id").(float64))
 	tanggal := c.Query("tanggal")
+	search := c.Query("search")
 
 	if tanggal == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Parameter tanggal wajib diisi"})
 	}
 
-	jadwals, err := h.repo.GetByDate(tanggal, orgID)
+	jadwals, err := h.repo.GetByDate(tanggal, orgID, search)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil jadwal"})
 	}
@@ -183,6 +239,10 @@ func (h *JadwalHandler) GetJadwalHarian(c *fiber.Ctx) error {
 
 	for _, j := range jadwals {
 		status := "BELUM ABSEN"
+		if !j.IsActive {
+			status = "NONAKTIF"
+		}
+
 		jamMasuk := ""
 		jamPulang := ""
 
@@ -204,7 +264,8 @@ func (h *JadwalHandler) GetJadwalHarian(c *fiber.Ctx) error {
 			}
 		} else {
 			// Jika tidak ada data kehadiran dan tanggal sudah lewat -> ALPHA
-			if targetDate.Before(today) {
+			// HANYA JIKA JADWAL AKTIF
+			if j.IsActive && targetDate.Before(today) {
 				status = "ALPHA"
 			}
 		}
@@ -230,7 +291,8 @@ func (h *JadwalHandler) GetJadwalDetail(c *fiber.Ctx) error {
 }
 
 type UpdateJadwalRequest struct {
-	ShiftID uint `json:"shift_id"`
+	ShiftID  uint  `json:"shift_id"`
+	IsActive *bool `json:"is_active"` // Pointer agar bisa deteksi true/false
 }
 
 func (h *JadwalHandler) UpdateJadwal(c *fiber.Ctx) error {
@@ -245,7 +307,13 @@ func (h *JadwalHandler) UpdateJadwal(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Jadwal tidak ditemukan"})
 	}
 
-	jadwal.ShiftID = req.ShiftID
+	if req.ShiftID != 0 {
+		jadwal.ShiftID = req.ShiftID
+	}
+	if req.IsActive != nil {
+		jadwal.IsActive = *req.IsActive
+	}
+
 	h.repo.Update(jadwal)
 	return c.JSON(fiber.Map{"message": "Jadwal berhasil diupdate"})
 }
