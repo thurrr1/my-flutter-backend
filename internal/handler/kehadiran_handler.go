@@ -203,8 +203,18 @@ func (h *KehadiranHandler) CheckOut(c *fiber.Ctx) error {
 
 func (h *KehadiranHandler) GetHistory(c *fiber.Ctx) error {
 	asnID := uint(c.Locals("user_id").(float64))
+	bulan := c.Query("bulan")
+	tahun := c.Query("tahun")
 
-	history, err := h.repo.GetHistory(asnID)
+	var history []model.Kehadiran
+	var err error
+
+	if bulan != "" && tahun != "" {
+		history, err = h.repo.GetByMonth(asnID, bulan, tahun)
+	} else {
+		history, err = h.repo.GetHistory(asnID)
+	}
+
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data riwayat"})
 	}

@@ -8,6 +8,16 @@ servers:
     description: Local Development Server
 
 components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Deskripsi error"
+      required:
+        - error
+
   securitySchemes:
     bearerAuth:
       type: http
@@ -64,6 +74,30 @@ paths:
                     type: string
                   data:
                     type: object
+        400:
+          description: Format Data Salah
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Format data salah"
+        401:
+          description: Login Gagal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "NIP atau Password salah"
+        403:
+          description: Device Tidak Cocok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Akun ini terkunci pada perangkat lain. Hubungi admin untuk reset."
 
   /api/refresh-token:
     post:
@@ -135,6 +169,43 @@ paths:
       responses:
         200:
           description: Password berhasil diubah
+
+  /api/asn/atasan-list:
+    get:
+      summary: Get List Kandidat Atasan
+      tags: [Auth]
+      responses:
+        200:
+          description: List ASN yang bisa dijadikan atasan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ID: { type: integer }
+                        nama: { type: string }
+                        nip: { type: string }
+                        jabatan: { type: string }
+
+  /api/asn/atasan:
+    post:
+      summary: Update Atasan Saya
+      tags: [Auth]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                atasan_id: { type: integer }
+      responses:
+        200:
+          description: Atasan berhasil diperbarui
 
   # =======================
   # LUPA PASSWORD (OTP)
@@ -223,6 +294,23 @@ paths:
                 status: "HADIR"
                 waktu: "07:55:00"
                 jarak: 10.5
+        400:
+          description: Validasi Gagal (Jarak Jauh / Sudah Absen / Jadwal Kosong)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                DoubelAbsen:
+                  value: { "error": "Anda sudah melakukan Check-in hari ini" }
+                JadwalKosong:
+                   value: { "error": "Jadwal kerja hari ini belum ditentukan. Hubungi Admin." }
+        500:
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /api/kehadiran/checkout:
     post:
@@ -247,9 +335,64 @@ paths:
     get:
       summary: Riwayat Absensi Saya
       tags: [Kehadiran]
+      parameters:
+        - in: query
+          name: bulan
+          schema:
+            type: string
+            example: "02"
+        - in: query
+          name: tahun
+          schema:
+            type: string
+            example: "2026"
       responses:
         200:
           description: List Riwayat
+
+  /api/jadwal/saya:
+    get:
+      summary: Get Jadwal Saya (Bulanan)
+      tags: [Kehadiran]
+      parameters:
+        - in: query
+          name: bulan
+          schema:
+            type: string
+            example: "02"
+        - in: query
+          name: tahun
+          schema:
+            type: string
+            example: "2026"
+      responses:
+        200:
+          description: List Jadwal
+          content:
+            application/json:
+              example:
+                message: "Berhasil mengambil jadwal saya"
+                data:
+                  - id: 101
+                    tanggal: "2026-02-01"
+                    nama_shift: "Pagi"
+                    jam_masuk_shift: "08:00"
+                    jam_pulang_shift: "16:00"
+                    status: "HADIR"
+                    jam_masuk_real: "07:55:00"
+                    jam_pulang_real: "16:05:00"
+        400:
+           description: Bad request
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/ErrorResponse'
+        500:
+           description: Server error
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/ErrorResponse'
 
   /api/kehadiran/status-hari-ini:
     get:

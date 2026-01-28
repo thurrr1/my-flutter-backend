@@ -17,6 +17,7 @@ type JadwalRepository interface {
 	CountByShiftID(shiftID uint) (int64, error)
 	DeleteByDate(date string, orgID uint) error
 	GetByMonth(month string, year string, orgID uint) ([]model.Jadwal, error)
+	GetByASNAndMonth(asnID uint, month string, year string) ([]model.Jadwal, error)
 	Upsert(jadwal *model.Jadwal) error
 }
 
@@ -98,6 +99,15 @@ func (r *jadwalRepository) GetByMonth(month string, year string, orgID uint) ([]
 	err := r.db.Preload("Shift").Preload("ASN").
 		Joins("JOIN asns ON asns.id = jadwals.asn_id").
 		Where("jadwals.tanggal LIKE ? AND asns.organisasi_id = ? AND jadwals.is_active = ?", datePattern, orgID, true).
+		Find(&jadwals).Error
+	return jadwals, err
+}
+
+func (r *jadwalRepository) GetByASNAndMonth(asnID uint, month string, year string) ([]model.Jadwal, error) {
+	var jadwals []model.Jadwal
+	datePattern := year + "-" + month + "%"
+	err := r.db.Preload("Shift").
+		Where("asn_id = ? AND tanggal LIKE ? AND is_active = ?", asnID, datePattern, true).
 		Find(&jadwals).Error
 	return jadwals, err
 }

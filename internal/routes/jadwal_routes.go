@@ -17,8 +17,10 @@ func SetupJadwalRoutes(app *fiber.App, db *gorm.DB) {
 	asnRepo := repository.NewASNRepository(db) // Tambah ini
 	hdl := handler.NewJadwalHandler(repo, hlRepo, kehadiranRepo, shiftRepo, asnRepo)
 
-	api := app.Group("/api/admin", middleware.Auth, middleware.Role("Admin"))
+	// Mobile Routes
+	app.Get("/api/jadwal/saya", middleware.Auth, hdl.GetJadwalSaya)
 
+	api := app.Group("/api/admin", middleware.Auth, middleware.Role("Admin"))
 	api.Get("/jadwal", hdl.GetJadwalHarian)                   // Lihat per tanggal
 	api.Get("/jadwal/dashboard-stats", hdl.GetDashboardStats) // PENTING: Taruh ini SEBELUM :id
 	api.Get("/jadwal/:id", hdl.GetJadwalDetail)               // Detail untuk Edit

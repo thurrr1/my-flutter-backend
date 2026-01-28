@@ -281,6 +281,85 @@ func (h *JadwalHandler) GetJadwalHarian(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": response})
 }
 
+// GET /api/jadwal/saya?bulan=02&tahun=2026
+func (h *JadwalHandler) GetJadwalSaya(c *fiber.Ctx) error {
+	asnID := uint(c.Locals("user_id").(float64))
+	now := time.Now()
+	bulan := c.Query("bulan", now.Format("01"))
+	tahun := c.Query("tahun", now.Format("2006"))
+
+	// 1. Ambil Jadwal Saya Bulan Ini
+	jadwals, err := h.repo.GetByASNAndMonth(asnID, bulan, tahun)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil jadwal"})
+	}
+
+	// 2. Ambil Riwayat Kehadiran Bulan Ini
+	kehadirans, err := h.kehadiranRepo.GetByMonth(asnID, bulan, tahun)
+	kehadiranMap := make(map[string]model.Kehadiran) // Key by Tanggal YYYY-MM-DD
+	if err == nil {
+		for _, k := range kehadirans {
+			kehadiranMap[k.Tanggal] = k
+		}
+	}
+
+	// 3. Gabungkan
+	var response []fiber.Map
+	today := now.Format("2006-01-02")
+
+	for _, j := range jadwals {
+		status := "BELUM ABSEN"
+		jamMasuk := ""
+		jamPulang := ""
+
+		if !j.IsActive {
+			status = "LIBUR"
+		} else {
+			if k, exists := kehadiranMap[j.Tanggal]; exists {
+				jamMasuk = k.JamMasukReal
+				jamPulang = k.JamPulangReal
+
+				if k.StatusMasuk == "IZIN" {
+					status = "IZIN"
+				} else if k.StatusMasuk == "CUTI" {
+					status = "CUTI"
+				} else if k.StatusMasuk == "TERLAMBAT" || k.StatusPulang == "PULANG_CEPAT" {
+					status = "TERLAMBAT"
+					if k.PerizinanKehadiranID != nil {
+						status += " (Diizinkan)"
+					}
+				} else {
+					status = "HADIR"
+				}
+			} else {
+				if j.Tanggal < today {
+					status = "ALFA"
+				}
+			}
+		}
+
+		response = append(response, fiber.Map{
+			"id":               j.ID,
+			"tanggal":          j.Tanggal,
+			"nama_shift":       j.Shift.NamaShift,
+			"jam_masuk_shift":  j.Shift.JamMasuk,
+			"jam_pulang_shift": j.Shift.JamPulang,
+			"status":           status,
+			"jam_masuk_real":   jamMasuk,
+			"jam_pulang_real":  jamPulang,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Berhasil mengambil jadwal saya",
+		"data":    response,
+		"meta": fiber.Map{
+			"bulan": bulan,
+			"tahun": tahun,
+		},
+	})
+}
+
 func (h *JadwalHandler) GetJadwalDetail(c *fiber.Ctx) error {
 	id, _ := strconv.Atoi(c.Params("id"))
 	jadwal, err := h.repo.GetByID(uint(id))
