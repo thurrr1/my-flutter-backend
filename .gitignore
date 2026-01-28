@@ -12,4 +12,4 @@
 *.out
 
 # Ignore Laravel Project
-web-admin/
+web-admin-api/
