@@ -168,36 +168,105 @@ func (h *JadwalHandler) ImportJadwal(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format data tidak valid"})
 	}
 
-	countSuccess := 0
+	if len(reqs) == 0 {
+		return c.JSON(fiber.Map{"message": "Tidak ada data untuk diimport"})
+	}
+
+	// ---------------------------------------------------------
+	// OPTIMISASI CACHING REFERENCE DATA (ASN & SHIFT)
+	// ---------------------------------------------------------
+
+	// 1. Cache Semua Shift (Key: "JamMasuk-JamPulang", Value: ID)
+	shiftCache := make(map[string]uint)
+	shifts, _ := h.shiftRepo.GetAll()
+	for _, s := range shifts {
+		key := fmt.Sprintf("%s-%s", s.JamMasuk, s.JamPulang)
+		shiftCache[key] = s.ID
+	}
+
+	// 2. Cache Semua ASN (Key: NIP, Value: ID)
+	// NOTE: Jika ASN sangat banyak (>10k), sebaiknya query `WhereIn("nip", requestedNIPs)`
+	// Tapi untuk skala < 5k pegawai, load all masih oke dan cepat.
+	asnCache := make(map[string]uint)
+	asns, _ := h.asnRepo.GetAll("") // Empty search fetches all
+	for _, a := range asns {
+		asnCache[a.NIP] = a.ID
+	}
+
+	// ---------------------------------------------------------
+	// PREPARE DATA FOR BATCH INSERT
+	// ---------------------------------------------------------
+
+	var jadwalsToUpsert []model.Jadwal
+	newShiftsMap := make(map[string]*model.Shift) // Temp storage untuk shift baru yang belum di DB
 
 	for _, item := range reqs {
-		// 1. Cari ASN by NIP
-		asn, err := h.asnRepo.FindByNIP(item.NIP)
-		if err != nil {
-			continue // Skip jika NIP tidak ditemukan
+		// A. Lookup ASN ID
+		asnID, exists := asnCache[item.NIP]
+		if !exists {
+			continue // Skip jika NIP tidak valid/tidak ditemukan
 		}
 
-		// 2. Find Or Create Shift
-		shift, err := h.shiftRepo.FindOrCreate(item.JamMasuk, item.JamPulang)
-		if err != nil {
-			continue // Skip jika gagal buat/cari shift
+		// B. Lookup / Prepare Shift ID
+		shiftKey := fmt.Sprintf("%s-%s", item.JamMasuk, item.JamPulang)
+		shiftID, exists := shiftCache[shiftKey]
+
+		if !exists {
+			// Cek apakah sudah kita queue untuk dibuat di iterasi sebelumnya?
+			if s, inQueue := newShiftsMap[shiftKey]; inQueue {
+				// Sudah ada di map sementara, (ID masih 0, tapi ini complex untuk batch insert relasi)
+				// KEEP SIMPLE: Jika shift baru, insert direct one-by-one.
+				// Jarang terjadi mass creation shift lewat import jadwal biasanya.
+				err := h.shiftRepo.Create(s)
+				if err == nil {
+					shiftID = s.ID
+					shiftCache[shiftKey] = s.ID    // Update cache
+					delete(newShiftsMap, shiftKey) // Hapus dari queue
+				}
+			} else {
+				// Belum ada sama sekali, buat object baru
+				newShift := model.Shift{
+					NamaShift: shiftKey,
+					JamMasuk:  item.JamMasuk,
+					JamPulang: item.JamPulang,
+				}
+				// Insert langsung agar dapat ID
+				if err := h.shiftRepo.Create(&newShift); err == nil {
+					shiftID = newShift.ID
+					shiftCache[shiftKey] = newShift.ID
+				}
+			}
 		}
 
-		// 3. Upsert Jadwal
-		jadwal := model.Jadwal{
-			ASNID:    asn.ID,
-			ShiftID:  shift.ID,
+		// Jika Shiftgagal dibuat/ditemukan, skip
+		if shiftID == 0 {
+			continue
+		}
+
+		// C. Append to Batch List
+		jadwalsToUpsert = append(jadwalsToUpsert, model.Jadwal{
+			ASNID:    asnID,
+			ShiftID:  shiftID,
 			Tanggal:  item.Tanggal,
 			IsActive: item.IsActive,
-		}
+		})
+	}
 
-		if err := h.repo.Upsert(&jadwal); err == nil {
-			countSuccess++
+	// ---------------------------------------------------------
+	// EXECUTE BATCH UPSERT
+	// ---------------------------------------------------------
+	if len(jadwalsToUpsert) > 0 {
+		// Bagi menjadi chunk jika sangat besar (misal max 1000 per insert)
+		// GORM biasanya handle ini, tapi bisa kita bantu manual kalau mau.
+		// Untuk sekarang langsung upsert semua saja.
+		if err := h.repo.UpsertBatch(jadwalsToUpsert); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menyimpan data jadwal: " + err.Error()})
 		}
 	}
 
 	return c.JSON(fiber.Map{
-		"message": fmt.Sprintf("Berhasil import %d jadwal", countSuccess),
+		"message":         fmt.Sprintf("Berhasil memproses %d baris, %d jadwal tersimpan/diupdate", len(reqs), len(jadwalsToUpsert)),
+		"total_processed": len(jadwalsToUpsert),
 	})
 }
 
@@ -493,6 +562,7 @@ func (h *JadwalHandler) GetDashboardStats(c *fiber.Ctx) error {
 				} else {
 					tlCp++
 				}
+				statusMasuk = "TERLAMBAT" // Tetap TERLAMBAT agar terdeteksi frontend
 			} else {
 				hadir++
 			}
@@ -507,9 +577,10 @@ func (h *JadwalHandler) GetDashboardStats(c *fiber.Ctx) error {
 
 		// Tambahkan ke detail list untuk grafik harian
 		details = append(details, fiber.Map{
-			"tanggal":       j.Tanggal,
-			"status_masuk":  statusMasuk,
-			"status_pulang": statusPulang,
+			"tanggal":                j.Tanggal,
+			"status_masuk":           statusMasuk,
+			"status_pulang":          statusPulang,
+			"perizinan_kehadiran_id": k.PerizinanKehadiranID,
 		})
 
 		// Hitung Statistik Harian (Hanya jika tanggal jadwal == hari ini)

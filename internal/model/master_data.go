@@ -6,9 +6,9 @@ import (
 
 type Jadwal struct {
 	gorm.Model
-	ASNID    uint   `json:"asn_id"`
+	ASNID    uint   `json:"asn_id" gorm:"uniqueIndex:idx_asn_tanggal"`
 	ShiftID  uint   `json:"shift_id"`
-	Tanggal  string `json:"tanggal"`
+	Tanggal  string `json:"tanggal" gorm:"type:varchar(20);uniqueIndex:idx_asn_tanggal"`
 	IsActive bool   `json:"is_active"`
 
 	// Relasi

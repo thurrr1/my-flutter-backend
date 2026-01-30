@@ -4,6 +4,7 @@ import (
 	"my-flutter-backend/internal/model"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type JadwalRepository interface {
@@ -19,6 +20,7 @@ type JadwalRepository interface {
 	GetByMonth(month string, year string, orgID uint) ([]model.Jadwal, error)
 	GetByASNAndMonth(asnID uint, month string, year string) ([]model.Jadwal, error)
 	Upsert(jadwal *model.Jadwal) error
+	UpsertBatch(jadwals []model.Jadwal) error
 }
 
 type jadwalRepository struct {
@@ -129,4 +131,17 @@ func (r *jadwalRepository) Upsert(jadwal *model.Jadwal) error {
 
 	// Create Baru
 	return r.db.Create(jadwal).Error
+}
+
+func (r *jadwalRepository) UpsertBatch(jadwals []model.Jadwal) error {
+	if len(jadwals) == 0 {
+		return nil
+	}
+	// Gunakan Clause OnConflict untuk handle Duplicate Key (Upsert)
+	// Asumsi constraint unik ada di (asn_id, tanggal)
+	// Update semua field yang relevan jika konflik
+	return r.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "asn_id"}, {Name: "tanggal"}},
+		DoUpdates: clause.AssignmentColumns([]string{"shift_id", "is_active", "updated_at"}),
+	}).Create(&jadwals).Error
 }

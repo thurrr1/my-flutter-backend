@@ -35,6 +35,7 @@ func main() {
 	routes.SetupOrganisasiRoutes(app, config.DB)
 	routes.SetupHariLiburRoutes(app, config.DB)
 	routes.SetupRoleRoutes(app, config.DB)
+	routes.SetupReportRoutes(app, config.DB)
 
 	fmt.Println("3. Server siap! Menunggu request di port :3000")
 	app.Listen(":3000")

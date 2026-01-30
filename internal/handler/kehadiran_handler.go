@@ -169,9 +169,9 @@ func (h *KehadiranHandler) CheckOut(c *fiber.Ctx) error {
 	tglJadwal, _ := time.Parse("2006-01-02", attendance.Tanggal)
 	waktuPulangShift := time.Date(tglJadwal.Year(), tglJadwal.Month(), tglJadwal.Day(), jamPulangShift.Hour(), jamPulangShift.Minute(), 0, 0, time.Local)
 
-	// Logic Cross-Day: Jika Jam Pulang < Jam Masuk (secara jam), berarti shift berakhir di hari berikutnya (H+1)
+	// Logic Cross-Day: Jika Jam Pulang <= Jam Masuk, berarti shift berakhir di hari berikutnya (H+1) (Support shift 24 jam)
 	jamMasukShift, _ := time.Parse("15:04", jadwal.Shift.JamMasuk)
-	if jamPulangShift.Before(jamMasukShift) {
+	if jamPulangShift.Before(jamMasukShift) || jamPulangShift.Equal(jamMasukShift) {
 		waktuPulangShift = waktuPulangShift.AddDate(0, 0, 1) // Tambah 1 hari
 	}
 
