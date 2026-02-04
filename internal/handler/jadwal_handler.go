@@ -272,9 +272,11 @@ func (h *JadwalHandler) ImportJadwal(c *fiber.Ctx) error {
 
 type JadwalWithStatus struct {
 	model.Jadwal
-	StatusKehadiran string `json:"status_kehadiran"`
-	JamMasukReal    string `json:"jam_masuk_real"`
-	JamPulangReal   string `json:"jam_pulang_real"`
+	StatusKehadiran    string `json:"status_kehadiran"`
+	JamMasukReal       string `json:"jam_masuk_real"`
+	JamPulangReal      string `json:"jam_pulang_real"`
+	StatusLokasiMasuk  string `json:"status_lokasi_masuk"`
+	StatusLokasiPulang string `json:"status_lokasi_pulang"`
 }
 
 // GET /api/admin/jadwal?tanggal=2024-10-25
@@ -340,10 +342,12 @@ func (h *JadwalHandler) GetJadwalHarian(c *fiber.Ctx) error {
 		}
 
 		response = append(response, JadwalWithStatus{
-			Jadwal:          j,
-			StatusKehadiran: status,
-			JamMasukReal:    jamMasuk,
-			JamPulangReal:   jamPulang,
+			Jadwal:             j,
+			StatusKehadiran:    status,
+			JamMasukReal:       jamMasuk,
+			JamPulangReal:      jamPulang,
+			StatusLokasiMasuk:  kehadiranMap[j.ASNID].StatusLokasiMasuk,
+			StatusLokasiPulang: kehadiranMap[j.ASNID].StatusLokasiPulang,
 		})
 	}
 

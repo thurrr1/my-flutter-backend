@@ -26,7 +26,9 @@ func (h *PerizinanKehadiranHandler) AjukanKoreksi(c *fiber.Ctx) error {
 
 	tanggal := c.FormValue("tanggal_kehadiran")
 	tipe := c.FormValue("tipe_koreksi")
+
 	alasan := c.FormValue("alasan")
+	isLokasi := c.FormValue("is_lokasi") == "true"
 
 	if tanggal == "" || tipe == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Tanggal dan Tipe Koreksi wajib diisi"})
@@ -59,9 +61,11 @@ func (h *PerizinanKehadiranHandler) AjukanKoreksi(c *fiber.Ctx) error {
 		NIPAtasan:        nipAtasan,
 		TanggalKehadiran: tanggal,
 		TipeKoreksi:      tipe,
-		Alasan:           alasan,
-		Status:           "MENUNGGU",
-		PathFile:         pathFile,
+
+		IsLokasi: isLokasi,
+		Alasan:   alasan,
+		Status:   "MENUNGGU",
+		PathFile: pathFile,
 	}
 
 	if err := h.repo.Create(&koreksi); err != nil {
@@ -118,7 +122,11 @@ func (h *PerizinanKehadiranHandler) ProcessApproval(c *fiber.Ctx) error {
 		kehadiran, err := h.kehadiranRepo.GetByDate(koreksi.ASNID, koreksi.TanggalKehadiran)
 		if err == nil {
 			// Hanya update data kehadiran yang sudah ada (Inject ID Izin)
-			kehadiran.PerizinanKehadiranID = &koreksi.ID
+			if koreksi.IsLokasi {
+				kehadiran.PerizinanLokasiID = &koreksi.ID
+			} else {
+				kehadiran.PerizinanKehadiranID = &koreksi.ID
+			}
 			h.kehadiranRepo.Update(kehadiran)
 		}
 	}

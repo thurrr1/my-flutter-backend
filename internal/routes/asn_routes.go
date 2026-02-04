@@ -15,6 +15,7 @@ func SetupASNRoutes(app *fiber.App, db *gorm.DB) {
 
 	// Auth Routes
 	app.Post("/api/login", hdl.Login)
+	app.Post("/api/web-login", hdl.WebLogin) // Endpoint Login Khusus Web
 	app.Post("/api/refresh-token", hdl.RefreshToken)
 
 	// Forgot Password Routes (Mobile Flow)
@@ -27,8 +28,9 @@ func SetupASNRoutes(app *fiber.App, db *gorm.DB) {
 	api.Get("/profile", hdl.GetProfile)
 	api.Put("/profile", hdl.UpdateProfile)
 	api.Put("/password", hdl.ChangePassword)
-	api.Get("/atasan-list", hdl.GetListAtasan) // Get List Kandidat Atasan
-	api.Post("/atasan", hdl.UpdateAtasan)      // Update Atasan Saya
+	api.Get("/atasan-list", hdl.GetListAtasan)      // Get List Kandidat Atasan
+	api.Post("/atasan", hdl.UpdateAtasan)           // Update Atasan Saya
+	api.Post("/upload-foto", hdl.UploadFotoProfile) // Upload Foto Profile
 
 	// Admin Routes (Kelola Pegawai)
 	admin := app.Group("/api/admin/asn", middleware.Auth, middleware.Role("Admin"))

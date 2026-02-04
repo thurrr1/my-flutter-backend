@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"my-flutter-backend/internal/model"
 	"my-flutter-backend/internal/repository"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -116,6 +118,65 @@ func (h *ASNHandler) Login(c *fiber.Ctx) error {
 			"organisasi":  asn.Organisasi.NamaOrganisasi, // Tambahan untuk Dashboard
 			"atasan_id":   asn.AtasanID,
 			"nip_atasan":  nipAtasan,
+			"foto":        asn.Foto,
+		},
+	})
+}
+
+// WebLogin: Login khusus via Web Admin (Tanpa Cek Device Binding)
+func (h *ASNHandler) WebLogin(c *fiber.Ctx) error {
+	var req LoginRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format data salah"})
+	}
+
+	// 1. Cari ASN by NIP
+	asn, err := h.repo.FindByNIP(req.NIP)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "NIP atau Password salah"})
+	}
+
+	// 2. Cek Password
+	err = bcrypt.CompareHashAndPassword([]byte(asn.Password), []byte(req.Password))
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "NIP atau Password salah"})
+	}
+
+	// 3. SKIP Cek Device Binding (Khusus Web)
+
+	// 4. Generate Token JWT
+	accessToken, refreshToken, err := generateTokens(asn)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal membuat token"})
+	}
+
+	// Ambil list permission
+	var permissions []string
+	for _, p := range asn.Role.Permissions {
+		permissions = append(permissions, p.NamaPermission)
+	}
+
+	nipAtasan := ""
+	if asn.Atasan != nil {
+		nipAtasan = asn.Atasan.NIP
+	}
+
+	// 5. Return Token ke Client
+	return c.JSON(fiber.Map{
+		"message":       "Login berhasil",
+		"token":         accessToken,  // Access Token (15 Menit)
+		"refresh_token": refreshToken, // Refresh Token (7 Hari)
+		"data": fiber.Map{
+			"nip":         asn.NIP,
+			"nama":        asn.Nama,
+			"role":        asn.Role.NamaRole,
+			"permissions": permissions,
+			"jabatan":     asn.Jabatan,
+			"bidang":      asn.Bidang,
+			"organisasi":  asn.Organisasi.NamaOrganisasi,
+			"atasan_id":   asn.AtasanID,
+			"nip_atasan":  nipAtasan,
+			"foto":        asn.Foto,
 		},
 	})
 }
@@ -695,4 +756,53 @@ func (h *ASNHandler) ResetPasswordFinal(c *fiber.Ctx) error {
 	otpMutex.Unlock()
 
 	return c.JSON(fiber.Map{"message": "Password berhasil diubah. Silakan login kembali."})
+}
+
+// --- FITUR UPLOAD FOTO PROFILE ---
+func (h *ASNHandler) UploadFotoProfile(c *fiber.Ctx) error {
+	asnID := uint(c.Locals("user_id").(float64))
+
+	// 1. Ambil File dari Request
+	file, err := c.FormFile("foto") // Key: "foto"
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "File foto wajib diupload"})
+	}
+
+	// 2. Validasi Ukuran & Tipe (Opsional)
+	// Max 2MB
+	if file.Size > 2097152 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Ukuran file maksimal 2MB"})
+	}
+
+	// 3. Simpan File ke Folder ./uploads/profile
+	// Pastikan folder ada
+	uploadDir := "./uploads/profile"
+	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+		os.MkdirAll(uploadDir, 0755)
+	}
+
+	// Generate Nama Unik
+	ext := filepath.Ext(file.Filename)
+	filename := fmt.Sprintf("%d_%d%s", asnID, time.Now().Unix(), ext)
+	pathFile := fmt.Sprintf("uploads/profile/%s", filename)
+
+	if err := c.SaveFile(file, pathFile); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menyimpan file"})
+	}
+
+	// 4. Update Database
+	asn, err := h.repo.FindByID(asnID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User tidak ditemukan"})
+	}
+
+	asn.Foto = pathFile // Simpan relative path untuk diakses via URL
+	if err := h.repo.Update(asn); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal update foto di database"})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":   "Foto profil berhasil diperbarui",
+		"foto_path": pathFile,
+	})
 }

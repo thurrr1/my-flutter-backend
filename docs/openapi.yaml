@@ -74,6 +74,30 @@ paths:
                     type: string
                   data:
                     type: object
+                    properties:
+                      nip:
+                        type: string
+                      nama:
+                        type: string
+                      role:
+                        type: string
+                      permissions:
+                        type: array
+                        items:
+                          type: string
+                      jabatan:
+                        type: string
+                      bidang:
+                        type: string
+                      organisasi:
+                        type: string
+                      atasan_id:
+                        type: integer
+                      nip_atasan:
+                        type: string
+                      foto:
+                        type: string
+                        description: "Path relative foto profile"
         400:
           description: Format Data Salah
           content:
@@ -98,6 +122,57 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error: "Akun ini terkunci pada perangkat lain. Hubungi admin untuk reset."
+
+  /api/web-login:
+    post:
+      summary: Login Web Admin (No Device Check)
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nip:
+                  type: string
+                  example: "123456789"
+                password:
+                  type: string
+                  example: "admin123"
+      responses:
+        200:
+          description: Login Berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  data:
+                    type: object
+        400:
+          description: Format Data Salah
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Format data salah"
+        401:
+          description: Login Gagal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "NIP atau Password salah"
 
   /api/refresh-token:
     post:
@@ -151,6 +226,24 @@ paths:
       responses:
         200:
           description: Berhasil update
+
+  /api/asn/upload-foto:
+    post:
+      summary: Upload Foto Profile
+      tags: [Auth]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                foto:
+                  type: string
+                  format: binary
+                  description: "File foto (jpg/png) max 2MB"
+      responses:
+        200:
+          description: Foto berhasil diupload
 
   /api/asn/password:
     put:
@@ -546,6 +639,9 @@ paths:
                 tipe_koreksi:
                   type: string
                   enum: [TELAT, PULANG_CEPAT, LUAR_RADIUS]
+                is_lokasi:
+                  type: boolean
+                  description: "True jika ini perizinan lokasi (Luar Radius), False jika perizinan kehadiran (Telat/Pulang Cepat)"
                 alasan:
                   type: string
                 file_bukti:

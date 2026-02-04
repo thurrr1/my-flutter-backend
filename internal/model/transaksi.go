@@ -24,6 +24,7 @@ type PerizinanKehadiran struct {
 	NIPAtasan        string `json:"nip_atasan"`
 	TanggalKehadiran string `json:"tanggal_kehadiran"`
 	TipeKoreksi      string `json:"tipe_koreksi"` // TELAT, PULANG_CEPAT, LUAR_RADIUS
+	IsLokasi         bool   `json:"is_lokasi"`    // True jika Perizinan Lokasi, False jika Perizinan Kehadiran
 	Alasan           string `json:"alasan"`
 	Status           string `json:"status" gorm:"default:PENDING"`
 	PathFile         string `json:"path_file"`
