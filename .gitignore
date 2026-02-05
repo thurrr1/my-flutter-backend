@@ -13,3 +13,6 @@
 
 # Ignore Laravel Project
 web-admin-api/
+
+#file upload hehe
+uploads/
