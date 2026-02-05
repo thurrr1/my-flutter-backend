@@ -115,18 +115,24 @@ func (r *jadwalRepository) GetByASNAndMonth(asnID uint, month string, year strin
 }
 
 func (r *jadwalRepository) Upsert(jadwal *model.Jadwal) error {
-	// Cek apakah sudah ada jadwal untuk ASN di tanggal tersebut
+	// Cek apakah sudah ada jadwal untuk ASN di tanggal tersebut (TERMASUK SOFT DELETED)
 	var existing model.Jadwal
-	// Gunakan Limit(1).Find agar tidak return error RecordNotFound jika kosong
-	err := r.db.Where("asn_id = ? AND tanggal = ?", jadwal.ASNID, jadwal.Tanggal).Limit(1).Find(&existing).Error
+	// Gunakan Unscoped() agar bisa menemukan record yang sudah dihapus (soft delete)
+	err := r.db.Unscoped().Where("asn_id = ? AND tanggal = ?", jadwal.ASNID, jadwal.Tanggal).Limit(1).Find(&existing).Error
 	if err != nil {
 		return err
 	}
 
 	if existing.ID != 0 {
-		// Update
+		// Found existing record (active or soft deleted)
 		jadwal.ID = existing.ID
-		return r.db.Save(jadwal).Error
+
+		// Update fields using Map to explicitly set deleted_at to NULL (restore)
+		return r.db.Unscoped().Model(jadwal).Updates(map[string]interface{}{
+			"shift_id":   jadwal.ShiftID,
+			"is_active":  jadwal.IsActive,
+			"deleted_at": nil, // Restore if deleted
+		}).Error
 	}
 
 	// Create Baru
@@ -139,9 +145,8 @@ func (r *jadwalRepository) UpsertBatch(jadwals []model.Jadwal) error {
 	}
 	// Gunakan Clause OnConflict untuk handle Duplicate Key (Upsert)
 	// Asumsi constraint unik ada di (asn_id, tanggal)
-	// Update semua field yang relevan jika konflik
 	return r.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "asn_id"}, {Name: "tanggal"}},
-		DoUpdates: clause.AssignmentColumns([]string{"shift_id", "is_active", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"shift_id", "is_active", "updated_at", "deleted_at"}), // Include deleted_at to restore
 	}).Create(&jadwals).Error
 }
