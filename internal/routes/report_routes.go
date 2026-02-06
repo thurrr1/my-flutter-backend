@@ -19,4 +19,8 @@ func SetupReportRoutes(app *fiber.App, db *gorm.DB) {
 	api := app.Group("/api/admin/reports", middleware.Auth, middleware.Role("Admin"))
 	api.Get("/monthly", hdl.GetMonthlyRecap)
 	api.Get("/daily", hdl.GetDailyRecap)
+
+	// Atasan Routes
+	atasan := app.Group("/api/atasan/reports", middleware.Auth)
+	atasan.Get("/monthly", hdl.GetMonthlyRecapByAtasan)
 }

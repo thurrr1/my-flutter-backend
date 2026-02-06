@@ -30,6 +30,7 @@ func SetupASNRoutes(app *fiber.App, db *gorm.DB) {
 	api.Put("/password", hdl.ChangePassword)
 	api.Get("/atasan-list", hdl.GetListAtasan)      // Get List Kandidat Atasan
 	api.Post("/atasan", hdl.UpdateAtasan)           // Update Atasan Saya
+	api.Get("/bawahan", hdl.GetSubordinates)        // Get List Bawahan (Untuk Atasan)
 	api.Post("/upload-foto", hdl.UploadFotoProfile) // Upload Foto Profile
 
 	// Admin Routes (Kelola Pegawai)

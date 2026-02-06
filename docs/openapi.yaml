@@ -300,6 +300,29 @@ paths:
         200:
           description: Atasan berhasil diperbarui
 
+  /api/asn/bawahan:
+    get:
+      summary: Get List Bawahan Saya
+      tags: [Auth]
+      responses:
+        200:
+          description: List Bawahan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ID: { type: integer }
+                        nama: { type: string }
+                        nip: { type: string }
+                        jabatan: { type: string }
+                        foto: { type: string }
+
   # =======================
   # LUPA PASSWORD (OTP)
   # =======================
@@ -548,6 +571,43 @@ paths:
                   izin: 1
                   cuti: 0
                   detail: []
+
+  /api/atasan/reports/monthly:
+    get:
+      summary: (Atasan) Rekap Absensi Bulanan Bawahan
+      tags: [Kehadiran]
+      parameters:
+        - in: query
+          name: bulan
+          schema:
+            type: string
+            example: "02"
+          required: true
+        - in: query
+          name: tahun
+          schema:
+            type: string
+            example: "2026"
+          required: true
+      responses:
+        200:
+          description: Statistik Kehadiran Bawahan
+          content:
+            application/json:
+              example:
+                organisasi: "Dinas Komunikasi dan Informatika"
+                bulan_tahun: "FEBRUARI 2026"
+                days_count: 28
+                data:
+                  - nip: "123456"
+                    nama: "Budi Santoso"
+                    stats:
+                      tl: 1
+                      cp: 0
+                      tk: 0
+                      c: 0
+                      i: 0
+                      total_kehadiran: 19
 
   # =======================
   # PERIZINAN (CUTI/SAKIT)

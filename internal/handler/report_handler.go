@@ -180,6 +180,154 @@ func (h *ReportHandler) GetMonthlyRecap(c *fiber.Ctx) error {
 	})
 }
 
+// GetMonthlyRecapByAtasan menyediakan data rekap bulanan khusus untuk bawahan dari atasan yang login
+func (h *ReportHandler) GetMonthlyRecapByAtasan(c *fiber.Ctx) error {
+	// Ambil ID Atasan dari Token
+	userID := uint(c.Locals("user_id").(float64))
+	orgID := uint(c.Locals("organisasi_id").(float64)) // Tetap butuh orgID untuk filter jadwal
+	bulan := c.Query("bulan")
+	tahun := c.Query("tahun")
+
+	// Pad bulan to 2 digits if needed
+	if len(bulan) == 1 {
+		bulan = "0" + bulan
+	}
+
+	if bulan == "" || tahun == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Bulan dan Tahun wajib diisi"})
+	}
+
+	// 1. Ambil List Bawahan (ASN yang atasan_id nya == userID)
+	asns, err := h.asnRepo.GetByAtasanID(userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data bawahan"})
+	}
+
+	// 2. Ambil Jadwal & Kehadiran Bulan Ini (Scope Organisasi)
+	// Kita ambil 1 org dulu, nanti difilter by map
+	jadwals, _ := h.jadwalRepo.GetByMonth(bulan, tahun, orgID)
+	kehadirans, _ := h.kehadiranRepo.GetByMonthAndOrg(bulan, tahun, orgID)
+
+	// Map untuk akses cepat
+	// Map[ASNID][Tanggal] = Jadwal
+	jadwalMap := make(map[uint]map[string]model.Jadwal)
+	for _, j := range jadwals {
+		if _, ok := jadwalMap[j.ASNID]; !ok {
+			jadwalMap[j.ASNID] = make(map[string]model.Jadwal)
+		}
+		jadwalMap[j.ASNID][j.Tanggal] = j
+	}
+
+	// Map[JadwalID] = Kehadiran
+	attendanceMap := make(map[uint]model.Kehadiran)
+	for _, k := range kehadirans {
+		attendanceMap[k.JadwalID] = k
+	}
+
+	// 3. Bangun Struktur Data Laporan
+	var reportData []fiber.Map
+	daysInMonth := getDaysInMonth(bulan, tahun)
+
+	for _, asn := range asns {
+		row := fiber.Map{
+			"nip":  asn.NIP,
+			"nama": asn.Nama,
+		}
+
+		// Counters
+		tl, cp, tk, cuti, izin := 0, 0, 0, 0, 0
+		t1, t2, t3, t4 := 0, 0, 0, 0
+
+		// Generate Daily Codes (01 - 31)
+		dailyCodes := make(map[string]string)
+
+		for d := 1; d <= daysInMonth; d++ {
+			dateDate := time.Date(parseYear(tahun), time.Month(parseMonth(bulan)), d, 0, 0, 0, 0, time.Local)
+			dateStr := dateDate.Format("2006-01-02")
+			dayKey := dateDate.Format("02")
+
+			code := "" // Default kosong
+
+			// Cek Jadwal
+			var jadwal model.Jadwal
+			hasJadwal := false
+
+			if userJadwal, ok := jadwalMap[asn.ID]; ok {
+				if j, exists := userJadwal[dateStr]; exists {
+					jadwal = j
+					hasJadwal = true
+				}
+			}
+
+			if hasJadwal && jadwal.IsActive {
+				// Cek Kehadiran
+				if k, attended := attendanceMap[jadwal.ID]; attended {
+					// Cek Validitas Lokasi / Izin
+					isLokasiValid := k.StatusLokasiMasuk == "VALID"
+					hasIzinLokasi := k.PerizinanLokasiID != nil
+
+					if !isLokasiValid && !hasIzinLokasi {
+						code = "-"
+						tk++
+					} else {
+						if k.StatusMasuk == "CUTI" {
+							code = "C"
+							cuti++
+						} else if k.StatusMasuk == "IZIN" {
+							code = "I"
+							izin++
+						} else if k.StatusMasuk == "HADIR" || k.StatusMasuk == "TERLAMBAT" || k.StatusPulang == "PULANG_CEPAT" {
+							code = "H"
+							if k.PerizinanKehadiranID == nil {
+								if k.StatusMasuk == "TERLAMBAT" {
+									tl++
+									minutesLate := calculateMinutesLate(jadwal.Shift.JamMasuk, k.JamMasukReal)
+									if minutesLate <= 30 {
+										t1++
+									} else if minutesLate <= 60 {
+										t2++
+									} else if minutesLate <= 90 {
+										t3++
+									} else {
+										t4++
+									}
+								}
+								if k.StatusPulang == "PULANG_CEPAT" {
+									cp++
+								}
+							}
+						}
+					}
+				} else {
+					if dateStr < time.Now().Format("2006-01-02") {
+						code = "-"
+						tk++
+					} else {
+						code = " "
+					}
+				}
+			}
+			dailyCodes[dayKey] = code
+		}
+
+		row["daily"] = dailyCodes
+		row["stats"] = fiber.Map{
+			"tl": tl, "cp": cp, "tk": tk, "c": cuti, "i": izin,
+			"t1": t1, "t2": t2, "t3": t3, "t4": t4,
+			"total_kehadiran": daysInMonth - tk - cuti - izin,
+		}
+
+		reportData = append(reportData, row)
+	}
+
+	return c.JSON(fiber.Map{
+		"organisasi":  "Dinas Komunikasi dan Informatika",
+		"bulan_tahun": convertMonthToIndonesian(bulan) + " " + tahun,
+		"data":        reportData,
+		"days_count":  daysInMonth,
+	})
+}
+
 // GetDailyRecap menyediakan data untuk PDF Laporan Harian
 func (h *ReportHandler) GetDailyRecap(c *fiber.Ctx) error {
 	orgID := uint(c.Locals("organisasi_id").(float64))

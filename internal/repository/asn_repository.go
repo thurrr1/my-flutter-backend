@@ -19,6 +19,7 @@ type ASNRepository interface {
 	Count() (int64, error)
 	GetByPermission(permissionName string) ([]model.ASN, error)
 	GetAllByOrganisasiID(orgID uint) ([]model.ASN, error)
+	GetByAtasanID(atasanID uint) ([]model.ASN, error)
 }
 
 type asnRepository struct {
@@ -104,5 +105,11 @@ func (r *asnRepository) GetByPermission(permissionName string) ([]model.ASN, err
 func (r *asnRepository) GetAllByOrganisasiID(orgID uint) ([]model.ASN, error) {
 	var asns []model.ASN
 	err := r.db.Where("organisasi_id = ?", orgID).Find(&asns).Error
+	return asns, err
+}
+
+func (r *asnRepository) GetByAtasanID(atasanID uint) ([]model.ASN, error) {
+	var asns []model.ASN
+	err := r.db.Where("atasan_id = ?", atasanID).Preload("Role").Preload("Organisasi").Find(&asns).Error
 	return asns, err
 }

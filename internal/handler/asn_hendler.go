@@ -802,7 +802,19 @@ func (h *ASNHandler) UploadFotoProfile(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"message":   "Foto profil berhasil diperbarui",
-		"foto_path": pathFile,
+		"message": "Foto profil berhasil diupload",
+		"data":    asn,
 	})
+}
+
+// GetSubordinates: Mengambil list pegawai yang atasan-nya adalah user yang sedang login
+func (h *ASNHandler) GetSubordinates(c *fiber.Ctx) error {
+	userID := uint(c.Locals("user_id").(float64))
+
+	asns, err := h.repo.GetByAtasanID(userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data bawahan"})
+	}
+
+	return c.JSON(fiber.Map{"data": asns})
 }
