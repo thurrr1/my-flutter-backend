@@ -43,4 +43,7 @@ func SetupASNRoutes(app *fiber.App, db *gorm.DB) {
 	admin.Put("/:id/reset-password", hdl.ResetUserPassword) // Route reset password (Lupa Password)
 	admin.Delete("/:id", hdl.DeleteASN)
 	admin.Delete("/:id/device", hdl.ResetDevice)
+
+	// Public Routes (Image Serving)
+	app.Get("/api/public/asn/:id/foto", hdl.GetFotoProfile)
 }

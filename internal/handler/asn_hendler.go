@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/base64"
 	"fmt"
 	"math/rand"
 	"my-flutter-backend/internal/model"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -272,7 +274,36 @@ func (h *ASNHandler) UpdateProfile(c *fiber.Ctx) error {
 		asn.NoHP = req.NoHP
 	}
 	if req.Foto != "" {
-		asn.Foto = req.Foto
+		// Cek apakah ini Base64 Image
+		if strings.HasPrefix(req.Foto, "data:image") {
+			// Format: "data:image/jpeg;base64,....."
+			parts := strings.Split(req.Foto, ",")
+			if len(parts) == 2 {
+				// Decode Base64
+				imgData, err := base64.StdEncoding.DecodeString(parts[1])
+				if err == nil {
+					// Simpan ke File
+					uploadDir := "./uploads/profile"
+					os.MkdirAll(uploadDir, 0755)
+
+					// Tentukan ekstensi dari header
+					ext := ".jpg" // Default
+					if strings.Contains(parts[0], "png") {
+						ext = ".png"
+					}
+
+					filename := fmt.Sprintf("%d_%d%s", asnID, time.Now().Unix(), ext)
+					pathFile := fmt.Sprintf("uploads/profile/%s", filename)
+
+					if err := os.WriteFile(pathFile, imgData, 0644); err == nil {
+						asn.Foto = pathFile // Simpan path ke DB
+					}
+				}
+			}
+		} else {
+			// Jika bukan base64, asumsikan ini URL atau Path yang sudah valid (atau update string biasa)
+			asn.Foto = req.Foto
+		}
 	}
 
 	if err := h.repo.Update(asn); err != nil {
@@ -805,6 +836,30 @@ func (h *ASNHandler) UploadFotoProfile(c *fiber.Ctx) error {
 		"message": "Foto profil berhasil diupload",
 		"data":    asn,
 	})
+}
+
+// GetFotoProfile: Mengambil file foto profil berdasarkan ID ASN
+func (h *ASNHandler) GetFotoProfile(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+
+	asn, err := h.repo.FindByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).SendString("User tidak ditemukan")
+	}
+
+	// Jika foto kosong atau file tidak ada, return placeholder default (opsional)
+	if asn.Foto == "" {
+		return c.Status(fiber.StatusNotFound).SendString("Foto belum diatur")
+	}
+
+	// Cek apakah file benar-benar ada di disk
+	if _, err := os.Stat(asn.Foto); os.IsNotExist(err) {
+		// Jika path di DB ada tapi file fisik hilang
+		return c.Status(fiber.StatusNotFound).SendString("File foto tidak ditemukan")
+	}
+
+	// Serve Static File
+	return c.SendFile(asn.Foto)
 }
 
 // GetSubordinates: Mengambil list pegawai yang atasan-nya adalah user yang sedang login
