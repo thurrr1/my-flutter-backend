@@ -77,6 +77,7 @@ func (h *ReportHandler) GetMonthlyRecap(c *fiber.Ctx) error {
 		// Counters
 		tl, cp, tk, cuti, izin := 0, 0, 0, 0, 0
 		t1, t2, t3, t4 := 0, 0, 0, 0
+		totalJadwal := 0
 
 		// Generate Daily Codes (01 - 31)
 		dailyCodes := make(map[string]string)
@@ -100,7 +101,7 @@ func (h *ReportHandler) GetMonthlyRecap(c *fiber.Ctx) error {
 			}
 
 			if hasJadwal && jadwal.IsActive {
-
+				totalJadwal++
 				// Cek Kehadiran
 				if k, attended := attendanceMap[jadwal.ID]; attended {
 
@@ -166,7 +167,7 @@ func (h *ReportHandler) GetMonthlyRecap(c *fiber.Ctx) error {
 		row["stats"] = fiber.Map{
 			"tl": tl, "cp": cp, "tk": tk, "c": cuti, "i": izin,
 			"t1": t1, "t2": t2, "t3": t3, "t4": t4,
-			"total_kehadiran": daysInMonth - tk - cuti - izin, // Estimasi sederhana
+			"total_kehadiran": totalJadwal - tk - cuti - izin,
 		}
 
 		reportData = append(reportData, row)
@@ -237,6 +238,7 @@ func (h *ReportHandler) GetMonthlyRecapByAtasan(c *fiber.Ctx) error {
 		// Counters
 		tl, cp, tk, cuti, izin := 0, 0, 0, 0, 0
 		t1, t2, t3, t4 := 0, 0, 0, 0
+		totalJadwal := 0
 
 		// Generate Daily Codes (01 - 31)
 		dailyCodes := make(map[string]string)
@@ -260,6 +262,7 @@ func (h *ReportHandler) GetMonthlyRecapByAtasan(c *fiber.Ctx) error {
 			}
 
 			if hasJadwal && jadwal.IsActive {
+				totalJadwal++
 				// Cek Kehadiran
 				if k, attended := attendanceMap[jadwal.ID]; attended {
 					// Cek Validitas Lokasi / Izin
@@ -314,7 +317,7 @@ func (h *ReportHandler) GetMonthlyRecapByAtasan(c *fiber.Ctx) error {
 		row["stats"] = fiber.Map{
 			"tl": tl, "cp": cp, "tk": tk, "c": cuti, "i": izin,
 			"t1": t1, "t2": t2, "t3": t3, "t4": t4,
-			"total_kehadiran": daysInMonth - tk - cuti - izin,
+			"total_kehadiran": totalJadwal - tk - cuti - izin,
 		}
 
 		reportData = append(reportData, row)

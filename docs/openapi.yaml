@@ -222,10 +222,37 @@ paths:
                   type: string
                 foto:
                   type: string
-                  description: Base64 string
+                  description: Base64 string (starts with data:image/...) or URL
       responses:
         200:
           description: Berhasil update
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data: { type: object }
+
+  /api/public/asn/{id}/foto:
+    get:
+      summary: Get Foto Profile (Public)
+      tags: [Auth]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          description: File Image
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        404:
+          description: Foto tidak ditemukan (Returns text)
 
   /api/asn/upload-foto:
     post:
