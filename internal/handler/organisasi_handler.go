@@ -9,11 +9,12 @@ import (
 )
 
 type OrganisasiHandler struct {
-	repo repository.OrganisasiRepository
+	repo    repository.OrganisasiRepository
+	asnRepo repository.ASNRepository
 }
 
-func NewOrganisasiHandler(repo repository.OrganisasiRepository) *OrganisasiHandler {
-	return &OrganisasiHandler{repo: repo}
+func NewOrganisasiHandler(repo repository.OrganisasiRepository, asnRepo repository.ASNRepository) *OrganisasiHandler {
+	return &OrganisasiHandler{repo: repo, asnRepo: asnRepo}
 }
 
 func (h *OrganisasiHandler) GetInfo(c *fiber.Ctx) error {
@@ -120,4 +121,74 @@ func (h *OrganisasiHandler) DeleteLokasi(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"message": "Lokasi berhasil dihapus"})
+}
+
+// --- SUPER ADMIN FEATURES ---
+
+type CreateOrganisasiRequest struct {
+	NamaOrganisasi string `json:"nama_organisasi"`
+	EmailAdmin     string `json:"email_admin"`
+}
+
+func (h *OrganisasiHandler) CreateOrganisasi(c *fiber.Ctx) error {
+	var req CreateOrganisasiRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	org := model.Organisasi{
+		NamaOrganisasi: req.NamaOrganisasi,
+		EmailAdmin:     req.EmailAdmin,
+	}
+
+	if err := h.repo.Create(&org); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal membuat organisasi"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Organisasi berhasil dibuat", "data": org})
+}
+
+func (h *OrganisasiHandler) GetAllOrganisasi(c *fiber.Ctx) error {
+	orgs, err := h.repo.GetAll()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data organisasi"})
+	}
+	return c.JSON(fiber.Map{"data": orgs})
+}
+
+func (h *OrganisasiHandler) UpdateOrganisasiByID(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+
+	var req UpdateOrganisasiRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	org, err := h.repo.GetByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Organisasi tidak ditemukan"})
+	}
+
+	if req.NamaOrganisasi != "" {
+		org.NamaOrganisasi = req.NamaOrganisasi
+	}
+	org.EmailAdmin = req.EmailAdmin
+
+	if err := h.repo.Update(org); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal update organisasi"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Organisasi berhasil diperbarui", "data": org})
+}
+
+// GetAdmins: Mengambil list admin dari suatu organisasi
+func (h *OrganisasiHandler) GetAdmins(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+
+	admins, err := h.asnRepo.GetAdminsByOrganisasiID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data admin"})
+	}
+
+	return c.JSON(fiber.Map{"data": admins})
 }

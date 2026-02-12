@@ -388,14 +388,15 @@ func (h *ASNHandler) GetASNDetail(c *fiber.Ctx) error {
 // --- FITUR BARU: CRUD ADMIN ---
 
 type CreateASNRequest struct {
-	Nama     string `json:"nama"`
-	NIP      string `json:"nip"`
-	Password string `json:"password"`
-	Jabatan  string `json:"jabatan"`
-	Bidang   string `json:"bidang"`
-	RoleID   uint   `json:"role_id"`
-	Email    string `json:"email"`
-	NoHP     string `json:"no_hp"`
+	Nama         string `json:"nama"`
+	NIP          string `json:"nip"`
+	Password     string `json:"password"`
+	Jabatan      string `json:"jabatan"`
+	Bidang       string `json:"bidang"`
+	RoleID       uint   `json:"role_id"`
+	Email        string `json:"email"`
+	NoHP         string `json:"no_hp"`
+	OrganisasiID uint   `json:"organisasi_id"` // Optional, khusus Super Admin
 }
 
 // Helper function to Title Case (Simple Version)
@@ -411,10 +412,30 @@ func toTitleCase(s string) string {
 }
 
 func (h *ASNHandler) CreateASN(c *fiber.Ctx) error {
-	orgID := uint(c.Locals("organisasi_id").(float64))
 	var req CreateASNRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	// 1. Cek Permission User yang Login
+	userID := uint(c.Locals("user_id").(float64))
+	currentUser, err := h.repo.FindByID(userID)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User tidak ditemukan"})
+	}
+
+	canManageOrg := false
+	for _, p := range currentUser.Role.Permissions {
+		if p.NamaPermission == "kelola_organisasi" {
+			canManageOrg = true
+			break
+		}
+	}
+
+	// 2. Tentukan Organisasi ID
+	orgID := currentUser.OrganisasiID
+	if canManageOrg && req.OrganisasiID != 0 {
+		orgID = req.OrganisasiID
 	}
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -426,7 +447,7 @@ func (h *ASNHandler) CreateASN(c *fiber.Ctx) error {
 		Jabatan:      req.Jabatan,
 		Bidang:       req.Bidang,
 		RoleID:       req.RoleID,
-		OrganisasiID: orgID,
+		OrganisasiID: orgID, // Gunakan orgID yang sudah divalidasi
 		IsActive:     true,
 		Email:        req.Email,
 		NoHP:         req.NoHP,
@@ -888,4 +909,32 @@ func (h *ASNHandler) GetSubordinates(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"data": asns})
+}
+
+type UpdateStatusRequest struct {
+	IsActive bool `json:"is_active"`
+}
+
+func (h *ASNHandler) ToggleActiveASN(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+	var req UpdateStatusRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	asn, err := h.repo.FindByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pegawai tidak ditemukan"})
+	}
+
+	asn.IsActive = req.IsActive
+	if err := h.repo.Update(asn); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal update status pegawai"})
+	}
+
+	status := "nonaktif"
+	if asn.IsActive {
+		status = "aktif"
+	}
+	return c.JSON(fiber.Map{"message": fmt.Sprintf("Pegawai berhasil di-%san", status), "data": asn})
 }

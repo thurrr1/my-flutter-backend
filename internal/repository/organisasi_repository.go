@@ -14,6 +14,8 @@ type OrganisasiRepository interface {
 	UpdateLokasi(lokasi *model.Lokasi) error
 	CreateLokasi(lokasi *model.Lokasi) error
 	DeleteLokasi(id uint) error
+	Create(org *model.Organisasi) error
+	GetAll() ([]model.Organisasi, error)
 }
 
 type organisasiRepository struct {
@@ -39,6 +41,16 @@ func (r *organisasiRepository) GetByID(id uint) (*model.Organisasi, error) {
 
 func (r *organisasiRepository) Update(org *model.Organisasi) error {
 	return r.db.Save(org).Error
+}
+
+func (r *organisasiRepository) Create(org *model.Organisasi) error {
+	return r.db.Create(org).Error
+}
+
+func (r *organisasiRepository) GetAll() ([]model.Organisasi, error) {
+	var orgs []model.Organisasi
+	err := r.db.Find(&orgs).Error
+	return orgs, err
 }
 
 func (r *organisasiRepository) GetLokasiByID(id uint) (*model.Lokasi, error) {

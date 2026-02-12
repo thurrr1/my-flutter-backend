@@ -15,7 +15,7 @@ func SetupBannerRoutes(app *fiber.App, db *gorm.DB) {
 
 	app.Get("/api/banner", middleware.Auth, hdl.GetAll) // Mobile (Active Only)
 
-	admin := app.Group("/api/admin/banner", middleware.Auth, middleware.Role("Admin"))
+	admin := app.Group("/api/admin/banner", middleware.Auth, middleware.Role("Admin", "Super Admin"))
 	admin.Get("/", hdl.GetAllAdmin) // Admin (All)
 	admin.Post("/", hdl.Create)
 	admin.Put("/:id/toggle", hdl.ToggleStatus) // Toggle Active/Inactive

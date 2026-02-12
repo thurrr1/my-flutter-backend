@@ -405,14 +405,19 @@ func (h *ReportHandler) GetDailyRecap(c *fiber.Ctx) error {
 				}
 
 				// Keterangan Logic
+				labelIzin := ""
+				if k.PerizinanKehadiranID != nil {
+					labelIzin = " (Diizinkan)"
+				}
+
 				if k.StatusMasuk == "IZIN" {
 					row["keterangan"] = "Izin"
 				} else if k.StatusMasuk == "CUTI" {
 					row["keterangan"] = "Cuti"
 				} else if k.StatusMasuk == "TERLAMBAT" {
-					row["keterangan"] = "TL"
+					row["keterangan"] = "TL" + labelIzin
 				} else if k.StatusPulang == "PULANG_CEPAT" {
-					row["keterangan"] = "CP"
+					row["keterangan"] = "CP" + labelIzin
 				}
 
 				// Izin Status override keterangan? Atau append?

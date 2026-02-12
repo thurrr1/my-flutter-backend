@@ -25,6 +25,7 @@ func SeedAll(db *gorm.DB) {
 
 	// 3. Seed Roles
 	roles := []model.Role{
+		{NamaRole: "Super Admin"}, // New Role
 		{NamaRole: "Admin"},
 		{NamaRole: "Atasan"},
 		{NamaRole: "Pegawai"},
@@ -35,6 +36,7 @@ func SeedAll(db *gorm.DB) {
 
 	// 4. Seed Permissions (Contoh)
 	perms := []model.Permission{
+		{NamaPermission: "kelola_organisasi"}, // New Permission
 		{NamaPermission: "edit_jadwal"},
 		{NamaPermission: "approve_cuti"},
 		{NamaPermission: "view_rekap"},
@@ -44,21 +46,31 @@ func SeedAll(db *gorm.DB) {
 	}
 
 	// 4.1 Assign Permissions to Roles (Mapping Permission ke Role)
-	var adminRole, atasanRole, pegawaiRole model.Role
-	db.Where("nama_role = ?", "Admin").First(&adminRole)     // ID 1
-	db.Where("nama_role = ?", "Atasan").First(&atasanRole)   // ID 2
-	db.Where("nama_role = ?", "Pegawai").First(&pegawaiRole) // ID 3
+	var superAdminRole, adminRole, atasanRole, pegawaiRole model.Role
+	db.Where("nama_role = ?", "Super Admin").First(&superAdminRole)
+	db.Where("nama_role = ?", "Admin").First(&adminRole)     // ID 2
+	db.Where("nama_role = ?", "Atasan").First(&atasanRole)   // ID 3
+	db.Where("nama_role = ?", "Pegawai").First(&pegawaiRole) // ID 4
 
 	var allPerms []model.Permission
 	db.Find(&allPerms)
 
-	// 1. Admin (ID 1): Punya semua permission
-	db.Model(&adminRole).Association("Permissions").Replace(allPerms)
+	// 0. Super Admin: Punya SEMUA permission
+	db.Model(&superAdminRole).Association("Permissions").Replace(allPerms)
 
-	// 2. Atasan (ID 2): Semua kecuali 'edit_jadwal'
+	// 1. Admin: Punya semua KECUALI 'kelola_organisasi'
+	var adminPerms []model.Permission
+	for _, p := range allPerms {
+		if p.NamaPermission != "kelola_organisasi" {
+			adminPerms = append(adminPerms, p)
+		}
+	}
+	db.Model(&adminRole).Association("Permissions").Replace(adminPerms)
+
+	// 2. Atasan: Semua kecuali 'edit_jadwal' & 'kelola_organisasi'
 	var atasanPerms []model.Permission
 	for _, p := range allPerms {
-		if p.NamaPermission != "edit_jadwal" {
+		if p.NamaPermission != "edit_jadwal" && p.NamaPermission != "kelola_organisasi" {
 			atasanPerms = append(atasanPerms, p)
 		}
 	}
@@ -75,15 +87,36 @@ func SeedAll(db *gorm.DB) {
 
 	// 5. Seed Shift Default
 	shiftNormal := model.Shift{
-		NamaShift: "Normal (Senin-Jumat)",
-		JamMasuk:  "07:30",
-		JamPulang: "16:00",
+		NamaShift:    "Normal (Senin-Jumat)",
+		JamMasuk:     "07:30",
+		JamPulang:    "16:00",
+		OrganisasiID: org.ID, // Assign ke Organisasi Default
 	}
 	db.FirstOrCreate(&shiftNormal, model.Shift{NamaShift: shiftNormal.NamaShift})
 
-	// 6. Seed Akun Admin Pertama (ASN)
+	// 6. Seed Akun Super Admin
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
 
+	superAdminASN := model.ASN{
+		Nama:         "Super Administrator",
+		NIP:          "000000001", // NIP Khusus
+		Password:     string(hashedPassword),
+		Jabatan:      "IT Super Admin",
+		Bidang:       "Pusat Data",
+		RoleID:       superAdminRole.ID,
+		OrganisasiID: org.ID, // Masih attach ke Org pertama, tapi punya permission lintas org
+		IsActive:     true,
+	}
+	db.FirstOrCreate(&superAdminASN, model.ASN{NIP: superAdminASN.NIP})
+
+	// Force Update Role & Password agar jika user sudah ada, tetap ter-update
+	db.Model(&superAdminASN).Updates(map[string]interface{}{
+		"role_id":   superAdminRole.ID,
+		"password":  string(hashedPassword),
+		"is_active": true,
+	})
+
+	// 7. Seed Akun Admin Pertama (ASN)
 	adminASN := model.ASN{
 		Nama:         "Administrator Utama",
 		NIP:          "123456789123456789",
@@ -102,7 +135,7 @@ func SeedAll(db *gorm.DB) {
 		log.Println("Seeding Admin berhasil!")
 	}
 
-	// 7. Seed Pegawai (Bawahan dari Admin)
+	// 8. Seed Pegawai (Bawahan dari Admin)
 	pegawaiASN := model.ASN{
 		Nama:         "Budi Pegawai",
 		NIP:          "987654321", // NIP Beda

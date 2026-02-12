@@ -34,12 +34,13 @@ func SetupASNRoutes(app *fiber.App, db *gorm.DB) {
 	api.Post("/upload-foto", hdl.UploadFotoProfile) // Upload Foto Profile
 
 	// Admin Routes (Kelola Pegawai)
-	admin := app.Group("/api/admin/asn", middleware.Auth, middleware.Role("Admin"))
+	admin := app.Group("/api/admin/asn", middleware.Auth, middleware.Role("Admin", "Super Admin"))
 	admin.Get("/", hdl.GetAll)
 	admin.Get("/:id", hdl.GetASNDetail) // Route baru untuk detail
 	admin.Post("/", hdl.CreateASN)
 	admin.Post("/import", hdl.ImportASN) // Route Import Excel
 	admin.Put("/:id", hdl.UpdateASN)
+	admin.Patch("/:id/status", hdl.ToggleActiveASN)         // Toggle Status Aktif/Nonaktif
 	admin.Put("/:id/reset-password", hdl.ResetUserPassword) // Route reset password (Lupa Password)
 	admin.Delete("/:id", hdl.DeleteASN)
 	admin.Delete("/:id/device", hdl.ResetDevice)

@@ -20,6 +20,7 @@ type ASNRepository interface {
 	GetByPermission(permissionName string, orgID uint) ([]model.ASN, error)
 	GetAllByOrganisasiID(orgID uint) ([]model.ASN, error)
 	GetByAtasanID(atasanID uint) ([]model.ASN, error)
+	GetAdminsByOrganisasiID(orgID uint) ([]model.ASN, error)
 }
 
 type asnRepository struct {
@@ -45,7 +46,7 @@ func (r *asnRepository) GetLokasiByOrganisasiID(orgID uint) (*model.Lokasi, erro
 
 func (r *asnRepository) FindByID(id uint) (*model.ASN, error) {
 	var asn model.ASN
-	err := r.db.Preload("Role").Preload("Atasan").Preload("Devices").First(&asn, id).Error
+	err := r.db.Preload("Role.Permissions").Preload("Atasan").Preload("Devices").First(&asn, id).Error
 	return &asn, err
 }
 
@@ -113,5 +114,14 @@ func (r *asnRepository) GetAllByOrganisasiID(orgID uint) ([]model.ASN, error) {
 func (r *asnRepository) GetByAtasanID(atasanID uint) ([]model.ASN, error) {
 	var asns []model.ASN
 	err := r.db.Where("atasan_id = ?", atasanID).Preload("Role").Preload("Organisasi").Find(&asns).Error
+	return asns, err
+}
+
+func (r *asnRepository) GetAdminsByOrganisasiID(orgID uint) ([]model.ASN, error) {
+	var asns []model.ASN
+	// Join dengan roles untuk filter nama_role = 'Admin'
+	err := r.db.Joins("JOIN roles ON roles.id = asns.role_id").
+		Where("asns.organisasi_id = ? AND roles.nama_role = ?", orgID, "Admin").
+		Preload("Role").Preload("Organisasi").Find(&asns).Error
 	return asns, err
 }

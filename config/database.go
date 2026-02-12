@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"my-flutter-backend/internal/database"
 	"my-flutter-backend/internal/model"
 
 	"gorm.io/driver/mysql"
@@ -30,7 +29,7 @@ func ConnectDB() {
 		&model.PerizinanKehadiran{}, &model.Jadwal{}, &model.Shift{}, &model.HariLibur{},
 		&model.Device{}, &model.Banner{},
 	)
-	database.SeedAll(db)
+	// database.SeedAll(db) // Dipindahkan ke cmd/seeder/main.go
 
 	DB = db
 }

@@ -21,7 +21,16 @@ func (h *RoleHandler) GetAll(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data role"})
 	}
-	return c.JSON(fiber.Map{"data": roles})
+
+	// Filter: Sembunyikan "Super Admin"
+	var filteredRoles []model.Role
+	for _, r := range roles {
+		if r.NamaRole != "Super Admin" {
+			filteredRoles = append(filteredRoles, r)
+		}
+	}
+
+	return c.JSON(fiber.Map{"data": filteredRoles})
 }
 
 func (h *RoleHandler) GetAllPermissions(c *fiber.Ctx) error {
@@ -29,7 +38,16 @@ func (h *RoleHandler) GetAllPermissions(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data permission"})
 	}
-	return c.JSON(fiber.Map{"data": perms})
+
+	// Filter: Sembunyikan "kelola_organisasi"
+	var filteredPerms []model.Permission
+	for _, p := range perms {
+		if p.NamaPermission != "kelola_organisasi" {
+			filteredPerms = append(filteredPerms, p)
+		}
+	}
+
+	return c.JSON(fiber.Map{"data": filteredPerms})
 }
 
 func (h *RoleHandler) GetDetail(c *fiber.Ctx) error {
