@@ -21,6 +21,9 @@ func SetupPerizinanKehadiranRoutes(app *fiber.App, db *gorm.DB) {
 	api.Get("/riwayat", hdl.GetRiwayat)
 	api.Put("/ajukan/:id", hdl.EditKoreksi)
 	api.Delete("/ajukan/:id", hdl.DeleteKoreksi)
-	api.Get("/bawahan", hdl.GetBawahan)
-	api.Post("/approval", hdl.ProcessApproval)
+
+	// Approval Routes
+	approval := api.Group("/", middleware.Permission("approve_cuti"))
+	approval.Get("/bawahan", hdl.GetBawahan)
+	approval.Post("/approval", hdl.ProcessApproval)
 }

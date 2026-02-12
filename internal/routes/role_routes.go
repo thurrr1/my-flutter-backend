@@ -13,7 +13,7 @@ func SetupRoleRoutes(app *fiber.App, db *gorm.DB) {
 	repo := repository.NewRoleRepository(db)
 	hdl := handler.NewRoleHandler(repo)
 
-	api := app.Group("/api/admin/roles", middleware.Auth, middleware.Role("Admin", "Super Admin"))
+	api := app.Group("/api/admin/roles", middleware.Auth, middleware.Permission("edit_jadwal"))
 	api.Get("/", hdl.GetAll)
 	api.Get("/permissions", hdl.GetAllPermissions) // List semua permission yang tersedia
 	api.Get("/:id", hdl.GetDetail)

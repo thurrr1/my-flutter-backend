@@ -16,7 +16,7 @@ func SetupReportRoutes(app *fiber.App, db *gorm.DB) {
 
 	hdl := handler.NewReportHandler(jadwalRepo, kehadiranRepo, asnRepo)
 
-	api := app.Group("/api/admin/reports", middleware.Auth, middleware.Role("Admin", "Super Admin"))
+	api := app.Group("/api/admin/reports", middleware.Auth, middleware.Permission("edit_jadwal"))
 	api.Get("/monthly", hdl.GetMonthlyRecap)
 	api.Get("/daily", hdl.GetDailyRecap)
 

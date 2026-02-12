@@ -34,7 +34,9 @@ func SetupASNRoutes(app *fiber.App, db *gorm.DB) {
 	api.Post("/upload-foto", hdl.UploadFotoProfile) // Upload Foto Profile
 
 	// Admin Routes (Kelola Pegawai)
-	admin := app.Group("/api/admin/asn", middleware.Auth, middleware.Role("Admin", "Super Admin"))
+	// admin := app.Group("/api/admin/asn", middleware.Auth, middleware.Role("Admin", "Super Admin"))
+	// Ganti jadi Permission Based:
+	admin := app.Group("/api/admin/asn", middleware.Auth, middleware.Permission("edit_jadwal"))
 	admin.Get("/", hdl.GetAll)
 	admin.Get("/:id", hdl.GetASNDetail) // Route baru untuk detail
 	admin.Post("/", hdl.CreateASN)

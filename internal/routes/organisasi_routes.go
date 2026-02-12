@@ -15,7 +15,7 @@ func SetupOrganisasiRoutes(app *fiber.App, db *gorm.DB) {
 	hdl := handler.NewOrganisasiHandler(repo, asnRepo)
 
 	// Allow Admin and Super Admin
-	api := app.Group("/api/admin/organisasi", middleware.Auth, middleware.Role("Admin", "Super Admin"))
+	api := app.Group("/api/admin/organisasi", middleware.Auth, middleware.Permission("edit_jadwal"))
 
 	api.Get("/", hdl.GetInfo)
 	api.Put("/", hdl.UpdateOrganisasi)          // Update Info Organisasi (Nama & Email)

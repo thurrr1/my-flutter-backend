@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"my-flutter-backend/config"
+	"my-flutter-backend/internal/middleware"
 	"my-flutter-backend/internal/routes"
 
 	"github.com/gofiber/fiber/v2"
@@ -29,6 +30,9 @@ func main() {
 
 	// Serve Static Files (Agar gambar bisa dibuka via http://localhost:3000/uploads/...)
 	app.Static("/uploads", "./uploads")
+
+	// Init Middleware dengan DB
+	middleware.Init(config.DB)
 
 	routes.SetupASNRoutes(app, config.DB)
 	routes.SetupKehadiranRoutes(app, config.DB)

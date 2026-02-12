@@ -13,7 +13,7 @@ func SetupHariLiburRoutes(app *fiber.App, db *gorm.DB) {
 	repo := repository.NewHariLiburRepository(db)
 	hdl := handler.NewHariLiburHandler(repo)
 
-	api := app.Group("/api/admin/hari-libur", middleware.Auth, middleware.Role("Admin", "Super Admin"))
+	api := app.Group("/api/admin/hari-libur", middleware.Auth, middleware.Permission("edit_jadwal"))
 
 	api.Get("/", hdl.GetAll)
 	api.Post("/", hdl.Create)

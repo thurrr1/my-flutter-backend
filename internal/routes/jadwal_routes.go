@@ -20,7 +20,7 @@ func SetupJadwalRoutes(app *fiber.App, db *gorm.DB) {
 	// Mobile Routes
 	app.Get("/api/jadwal/saya", middleware.Auth, hdl.GetJadwalSaya)
 
-	api := app.Group("/api/admin", middleware.Auth, middleware.Role("Admin", "Super Admin"))
+	api := app.Group("/api/admin", middleware.Auth, middleware.Permission("edit_jadwal"))
 	api.Get("/jadwal", hdl.GetJadwalHarian)                   // Lihat per tanggal
 	api.Get("/jadwal/dashboard-stats", hdl.GetDashboardStats) // PENTING: Taruh ini SEBELUM :id
 	api.Get("/jadwal/:id", hdl.GetJadwalDetail)               // Detail untuk Edit
