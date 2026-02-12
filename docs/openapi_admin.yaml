@@ -81,7 +81,7 @@ paths:
                 no_hp: { type: string }
       responses:
         '200':
-          description: Pegawai created
+          description: Pegawai created. Name auto-formatted to Title Case.
 
   /api/admin/asn/{id}:
     get:
@@ -300,7 +300,7 @@ paths:
 
   /api/admin/jadwal/generate:
     post:
-      summary: Generate Jadwal Bulanan (Bulk)
+      summary: Generate Jadwal Bulanan (Bulk) - Scoped by Organization holidays
       tags: [Jadwal]
       requestBody:
         content:
@@ -400,13 +400,13 @@ paths:
   # --- SHIFT ---
   /api/admin/shift:
     get:
-      summary: Get All Shifts
+      summary: Get All Shifts (Filtered by Admin Organization)
       tags: [Master Data]
       responses:
         '200':
           description: List shifts
     post:
-      summary: Create Shift
+      summary: Create Shift (Auto-assigned to Organization)
       tags: [Master Data]
       requestBody:
         content:
@@ -551,13 +551,13 @@ paths:
   # --- HARI LIBUR ---
   /api/admin/hari-libur:
     get:
-      summary: Get All Hari Libur
+      summary: Get All Hari Libur (Filtered by Admin Organization)
       tags: [Master Data]
       responses:
         '200':
           description: List hari libur
     post:
-      summary: Create Hari Libur
+      summary: Create Hari Libur (Auto-assigned to Organization)
       tags: [Master Data]
       requestBody:
         content:
@@ -606,7 +606,7 @@ paths:
   # --- BANNER ---
   /api/admin/banner:
     post:
-      summary: Create Banner (Upload)
+      summary: Create Banner (Upload & Scoped by Organization)
       tags: [Master Data]
       requestBody:
         content:

@@ -513,6 +513,14 @@ paths:
       responses:
         200:
           description: Checkout Berhasil
+          content:
+            application/json:
+              example:
+                message: "Check-out berhasil"
+                status: "PULANG"
+                waktu: "17:05:00"
+                jarak: 10.5
+                tanggal_absen: "2026-02-12"
 
   /api/kehadiran/riwayat:
     get:
@@ -532,6 +540,17 @@ paths:
       responses:
         200:
           description: List Riwayat
+          content:
+            application/json:
+              example:
+                message: "Berhasil mengambil riwayat"
+                data:
+                  - id: 1
+                    tanggal: "2026-02-10"
+                    jam_masuk_real: "07:55:00"
+                    jam_pulang_real: "17:05:00"
+                    status_masuk: "HADIR"
+                    status_pulang: "PULANG"
 
   /api/jadwal/saya:
     get:
@@ -551,6 +570,19 @@ paths:
       responses:
         200:
           description: List Jadwal
+          content:
+            application/json:
+              example:
+                message: "Berhasil mengambil jadwal saya"
+                data:
+                  - id: 101
+                    tanggal: "2026-02-01"
+                    nama_shift: "Pagi"
+                    jam_masuk_shift: "08:00"
+                    jam_pulang_shift: "16:00"
+                    status: "HADIR"
+                    jam_masuk_real: "07:55:00"
+                    jam_pulang_real: "16:05:00"
           content:
             application/json:
               example:
@@ -628,6 +660,16 @@ paths:
       responses:
         200:
           description: Statistik Kehadiran
+          content:
+            application/json:
+              example:
+                message: "Rekap berhasil"
+                data:
+                  hadir: 20
+                  terlambat: 2
+                  izin: 1
+                  cuti: 0
+                  detail: []
           content:
             application/json:
               example:
@@ -762,6 +804,17 @@ paths:
       responses:
         200:
           description: List Pengajuan
+          content:
+            application/json:
+              example:
+                message: "Berhasil mengambil riwayat izin"
+                data:
+                  - id: 5
+                    tipe: "IZIN"
+                    jenis: "SAKIT"
+                    tanggal_mulai: "2026-02-10"
+                    tanggal_selesai: "2026-02-11"
+                    status: "MENUNGGU"
 
   /api/perizinan/bawahan:
     get:
@@ -770,6 +823,15 @@ paths:
       responses:
         200:
           description: List Pengajuan Bawahan
+          content:
+            application/json:
+              example:
+                message: "Berhasil mengambil daftar pengajuan bawahan"
+                data:
+                  - id: 5
+                    asn: { nama: "Budi", nip: "123" }
+                    tipe: "IZIN"
+                    status: "MENUNGGU"
 
   /api/perizinan/approval:
     post:
@@ -903,9 +965,10 @@ paths:
   # =======================
   # BANNER
   # =======================
+  # --- BANNER ---
   /api/banner:
     get:
-      summary: Get All Active Banner
+      summary: Get All Active Banner (Filtered by User Organization)
       tags: [Banner]
       responses:
         200:
