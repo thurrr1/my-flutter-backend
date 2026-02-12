@@ -852,6 +852,37 @@ paths:
         200:
           description: Status diperbarui
 
+  /api/perizinan/cancel/{id}:
+    post:
+      summary: Ajukan Pembatalan Izin (Pegawai)
+      tags: [Perizinan]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Berhasil diajukan pembatalan (Status -> MEMBATALKAN)
+
+  /api/perizinan/approve-cancel:
+    post:
+      summary: (Atasan) Approve Pembatalan Izin
+      tags: [Perizinan]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                perizinan_id:
+                  type: integer
+      responses:
+        200:
+          description: Berhasil dibatalkan (Status -> DIBATALKAN) dan record kehadiran dihapus.
+
+
   # =======================
   # KOREKSI ABSEN
   # =======================

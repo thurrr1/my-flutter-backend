@@ -275,6 +275,85 @@ func (h *PerizinanHandler) ProcessApproval(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Status perizinan berhasil diperbarui"})
 }
 
+// CancelIzin: Pegawai mengajukan pembatalan izin/cuti yang sudah disetujui
+func (h *PerizinanHandler) CancelIzin(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID tidak valid"})
+	}
+
+	asnID := uint(c.Locals("user_id").(float64))
+
+	// 1. Ambil data izin
+	izin, err := h.repo.GetByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Data izin tidak ditemukan"})
+	}
+
+	// 2. Validasi Pemilik
+	if izin.ASNID != asnID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Anda tidak berhak membatalkan izin ini"})
+	}
+
+	// 3. Validasi Status: Hanya yang "DISETUJUI" yang bisa dibatalkan
+	if izin.Status != "DISETUJUI" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Hanya izin yang sudah disetujui yang dapat dibatalkan"})
+	}
+
+	// 4. Update Status menjadi "MEMBATALKAN" (Menunggu Approval Atasan)
+	izin.Status = "MEMBATALKAN"
+	if err := h.repo.Update(izin); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengajukan pembatalan"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Pengajuan pembatalan berhasil dikirim ke atasan"})
+}
+
+type ApproveCancelRequest struct {
+	PerizinanID uint `json:"perizinan_id"`
+}
+
+// ApproveCancel: Atasan menyetujui pembatalan izin
+func (h *PerizinanHandler) ApproveCancel(c *fiber.Ctx) error {
+	var req ApproveCancelRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	// 1. Ambil data izin
+	izin, err := h.repo.GetByID(req.PerizinanID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Data perizinan tidak ditemukan"})
+	}
+
+	// 2. Validasi: Pastikan yang approve adalah Atasan atau Admin
+	nipUser := c.Locals("nip").(string)
+	roleUser := c.Locals("role").(string)
+
+	if izin.NIPAtasan != nipUser && roleUser != "Admin" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Anda bukan atasan dari pegawai ini"})
+	}
+
+	// 3. Validasi Status: Harus "MEMBATALKAN"
+	if izin.Status != "MEMBATALKAN" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Permintaan ini tidak dalam status pengajuan pembatalan"})
+	}
+
+	// 4. Update Status menjadi "DIBATALKAN"
+	izin.Status = "DIBATALKAN"
+	if err := h.repo.Update(izin); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal update status"})
+	}
+
+	// 5. Hapus Data Kehadiran terkait agar kuota cuti kembali / hari kerja normal
+	if err := h.kehadiranRepo.DeleteByPerizinanID(izin.ID); err != nil {
+		// Log error tapi jangan gagalkan request utama
+		fmt.Printf("Gagal saat menghapus data kehadiran setelah pembatalan cuti: %v\n", err)
+	}
+
+	return c.JSON(fiber.Map{"message": "Izin berhasil dibatalkan, data cuti telah dihapus dari kehadiran"})
+}
+
 // normalizeDateString menangani variasi format seperti "YYYY-M-D" dan mengubahnya menjadi "YYYY-MM-DD".
 func normalizeDateString(dateStr string) string {
 	parts := strings.Split(dateStr, "-")

@@ -18,6 +18,7 @@ type KehadiranRepository interface {
 	CountByStatus(date string, status string) (int64, error)
 	GetByDateAndOrg(date string, orgID uint) ([]model.Kehadiran, error)
 	GetByMonthAndOrg(month string, year string, orgID uint) ([]model.Kehadiran, error)
+	DeleteByPerizinanID(perizinanID uint) error
 }
 
 type kehadiranRepository struct {
@@ -98,4 +99,9 @@ func (r *kehadiranRepository) GetByMonthAndOrg(month string, year string, orgID 
 		Where("kehadirans.bulan = ? AND kehadirans.tahun = ? AND asns.organisasi_id = ?", month, year, orgID).
 		Find(&list).Error
 	return list, err
+}
+
+func (r *kehadiranRepository) DeleteByPerizinanID(perizinanID uint) error {
+	// Menghapus semua record kehadiran yang terkait dengan ID perizinan cuti tertentu
+	return r.db.Where("perizinan_cuti_id = ?", perizinanID).Delete(&model.Kehadiran{}).Error
 }

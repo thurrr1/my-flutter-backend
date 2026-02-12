@@ -28,4 +28,8 @@ func SetupPerizinanRoutes(app *fiber.App, db *gorm.DB) {
 	// Endpoint untuk Atasan (Approval)
 	api.Get("/bawahan", hdl.GetPengajuanBawahan)
 	api.Post("/approval", hdl.ProcessApproval)
+
+	// Endpoint untuk Pembatalan
+	api.Post("/cancel/:id", hdl.CancelIzin)
+	api.Post("/approve-cancel", hdl.ApproveCancel)
 }
