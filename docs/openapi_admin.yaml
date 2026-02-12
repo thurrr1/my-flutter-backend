@@ -633,7 +633,7 @@ paths:
         '200':
           description: Banner deactivated
 
-  # --- PERIZINAN & APPROVAL ---
+  # --- PERIZINANN & APPROVAL ---
   /api/perizinan/bawahan:
     get:
       summary: Get List Pengajuan Izin Bawahan (For Approval)
