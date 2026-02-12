@@ -17,7 +17,7 @@ type ASNRepository interface {
 	GetAll(search string) ([]model.ASN, error)
 	ResetDevice(asnID uint) error
 	Count() (int64, error)
-	GetByPermission(permissionName string) ([]model.ASN, error)
+	GetByPermission(permissionName string, orgID uint) ([]model.ASN, error)
 	GetAllByOrganisasiID(orgID uint) ([]model.ASN, error)
 	GetByAtasanID(atasanID uint) ([]model.ASN, error)
 }
@@ -92,14 +92,14 @@ func (r *asnRepository) Count() (int64, error) {
 	return count, err
 }
 
-func (r *asnRepository) GetByPermission(permissionName string) ([]model.ASN, error) {
+func (r *asnRepository) GetByPermission(permissionName string, orgID uint) ([]model.ASN, error) {
 	var asns []model.ASN
 	// Join tabel untuk mencari ASN yang memiliki Role dengan Permission tertentu
 	err := r.db.Distinct().Table("asns").
 		Joins("JOIN roles ON roles.id = asns.role_id").
 		Joins("JOIN role_permissions ON role_permissions.role_id = roles.id").
 		Joins("JOIN permissions ON permissions.id = role_permissions.permission_id").
-		Where("permissions.nama_permission = ?", permissionName).
+		Where("permissions.nama_permission = ? AND asns.organisasi_id = ?", permissionName, orgID).
 		Preload("Role").Preload("Organisasi").Find(&asns).Error
 	return asns, err
 }

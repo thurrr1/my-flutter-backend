@@ -555,9 +555,11 @@ func (h *ASNHandler) ResetDevice(c *fiber.Ctx) error {
 }
 
 func (h *ASNHandler) GetListAtasan(c *fiber.Ctx) error {
-	// Cari ASN yang punya permission 'approve_cuti'
-	// Pastikan nama permission di database sesuai, misal: "approve_cuti" atau "approval_atasan"
-	asns, err := h.repo.GetByPermission("approve_cuti")
+	// Ambil Organisasi ID
+	orgID := uint(c.Locals("organisasi_id").(float64))
+
+	// Cari ASN yang punya permission 'approve_cuti' dalam satu organisasi
+	asns, err := h.repo.GetByPermission("approve_cuti", orgID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data atasan"})
 	}

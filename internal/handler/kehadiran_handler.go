@@ -314,8 +314,25 @@ func (h *KehadiranHandler) GetRekap(c *fiber.Ctx) error {
 func (h *KehadiranHandler) GetTodayStatus(c *fiber.Ctx) error {
 	asnID := uint(c.Locals("user_id").(float64))
 	today := time.Now().Format("2006-01-02")
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 
-	// 1. Ambil Jadwal Hari Ini (PENTING: Agar aplikasi tahu shift terbaru secara realtime)
+	// 1. Cek Status Kehadiran Hari Ini
+	kehadiran, err := h.repo.GetTodayAttendance(asnID)
+
+	// Jika belum absen hari ini, CEK STATUS KEMARIN (Logic Shift Malam / Lintas Hari)
+	// Skenario: Masuk kemarin malam, sekarang (pagi/siang) belum pulang.
+	if err != nil || kehadiran == nil {
+		prevKehadiran, errPrev := h.repo.GetByDate(asnID, yesterday)
+
+		// Jika kemarin ada absen masuk DAN belum absen pulang
+		if errPrev == nil && prevKehadiran != nil && prevKehadiran.JamPulangReal == "" {
+			// Kita return status kehadiran KEMARIN agar UI tetap menampilkan "SUDAH ABSEN" / Timer Berjalan
+			kehadiran = prevKehadiran
+			today = yesterday // Ubah tanggal acuan jadwal ke kemarin
+		}
+	}
+
+	// 2. Ambil Jadwal Sesuai Tanggal Kehadiran (Hari ini atau Kemarin jika shift malam)
 	jadwal, errJadwal := h.jadwalRepo.GetByASNAndDate(asnID, today)
 	var jadwalInfo interface{} = nil
 
@@ -329,11 +346,8 @@ func (h *KehadiranHandler) GetTodayStatus(c *fiber.Ctx) error {
 		}
 	}
 
-	// 2. Cek Status Kehadiran
-	kehadiran, err := h.repo.GetTodayAttendance(asnID)
-
-	// Jika belum absen (record tidak ditemukan), return status khusus tapi bukan error 500
-	if err != nil {
+	// Jika tetap tidak ada data kehadiran (hari ini null, kemarin juga sudah pulang/null)
+	if kehadiran == nil {
 		return c.JSON(fiber.Map{
 			"message": "Belum ada data kehadiran hari ini",
 			"status":  "BELUM_ABSEN",
