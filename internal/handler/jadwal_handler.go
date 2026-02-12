@@ -60,6 +60,7 @@ type GenerateJadwalRequest struct {
 }
 
 func (h *JadwalHandler) GenerateJadwalBulanan(c *fiber.Ctx) error {
+	orgID := uint(c.Locals("organisasi_id").(float64))
 	var req GenerateJadwalRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
@@ -92,8 +93,8 @@ func (h *JadwalHandler) GenerateJadwalBulanan(c *fiber.Ctx) error {
 				continue // Skip jika hari tidak dicentang
 			}
 
-			// Cek apakah tanggal ini adalah Hari Libur Nasional
-			isHoliday, _ := h.hariLiburRepo.IsHoliday(d.Format("2006-01-02"))
+			// Cek apakah tanggal ini adalah Hari Libur Nasional (Scoped by Org)
+			isHoliday, _ := h.hariLiburRepo.IsHoliday(d.Format("2006-01-02"), orgID)
 			if isHoliday {
 				continue // Skip jika tanggal merah
 			}
@@ -163,6 +164,7 @@ type ImportJadwalItem struct {
 }
 
 func (h *JadwalHandler) ImportJadwal(c *fiber.Ctx) error {
+	orgID := uint(c.Locals("organisasi_id").(float64))
 	var reqs []ImportJadwalItem
 	if err := c.BodyParser(&reqs); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format data tidak valid"})
@@ -178,7 +180,7 @@ func (h *JadwalHandler) ImportJadwal(c *fiber.Ctx) error {
 
 	// 1. Cache Semua Shift (Key: "JamMasuk-JamPulang", Value: ID)
 	shiftCache := make(map[string]uint)
-	shifts, _ := h.shiftRepo.GetAll()
+	shifts, _ := h.shiftRepo.GetAll(orgID) // Filter by OrgID
 	for _, s := range shifts {
 		key := fmt.Sprintf("%s-%s", s.JamMasuk, s.JamPulang)
 		shiftCache[key] = s.ID
@@ -226,9 +228,10 @@ func (h *JadwalHandler) ImportJadwal(c *fiber.Ctx) error {
 			} else {
 				// Belum ada sama sekali, buat object baru
 				newShift := model.Shift{
-					NamaShift: shiftKey,
-					JamMasuk:  item.JamMasuk,
-					JamPulang: item.JamPulang,
+					OrganisasiID: orgID,
+					NamaShift:    shiftKey,
+					JamMasuk:     item.JamMasuk,
+					JamPulang:    item.JamPulang,
 				}
 				// Insert langsung agar dapat ID
 				if err := h.shiftRepo.Create(&newShift); err == nil {

@@ -21,7 +21,8 @@ func NewBannerHandler(repo repository.BannerRepository) *BannerHandler {
 }
 
 func (h *BannerHandler) GetAll(c *fiber.Ctx) error {
-	banners, err := h.repo.GetAllActive() // Mobile hanya lihat yang aktif
+	orgID := uint(c.Locals("organisasi_id").(float64)) // Ambil OrgID dari Token
+	banners, err := h.repo.GetAllActive(orgID)         // Mobile hanya lihat yang aktif & sesuai org
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil banner"})
 	}
@@ -36,7 +37,8 @@ func (h *BannerHandler) GetAll(c *fiber.Ctx) error {
 }
 
 func (h *BannerHandler) GetAllAdmin(c *fiber.Ctx) error {
-	banners, err := h.repo.GetAll() // Admin lihat semua
+	orgID := uint(c.Locals("organisasi_id").(float64))
+	banners, err := h.repo.GetAll(orgID) // Admin lihat semua di organisasinya
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil banner"})
 	}
@@ -50,6 +52,7 @@ func (h *BannerHandler) GetAllAdmin(c *fiber.Ctx) error {
 }
 
 func (h *BannerHandler) Create(c *fiber.Ctx) error {
+	orgID := uint(c.Locals("organisasi_id").(float64))
 	// Ambil Title dari Form
 	title := c.FormValue("title")
 	if title == "" {
@@ -73,7 +76,12 @@ func (h *BannerHandler) Create(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Foto banner wajib diupload"})
 	}
 
-	banner := model.Banner{Title: title, Foto: pathFile, IsActive: true}
+	banner := model.Banner{
+		OrganisasiID: orgID,
+		Title:        title,
+		Foto:         pathFile,
+		IsActive:     true,
+	}
 	if err := h.repo.Create(&banner); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal membuat banner"})
 	}

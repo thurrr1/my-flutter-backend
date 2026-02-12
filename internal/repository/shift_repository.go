@@ -8,12 +8,12 @@ import (
 )
 
 type ShiftRepository interface {
-	GetAll() ([]model.Shift, error)
+	GetAll(orgID uint) ([]model.Shift, error)
 	Create(shift *model.Shift) error
 	Update(shift *model.Shift) error
 	Delete(id uint) error
 	GetByID(id uint) (*model.Shift, error)
-	FindOrCreate(jamMasuk, jamPulang string) (*model.Shift, error)
+	FindOrCreate(orgID uint, jamMasuk, jamPulang string) (*model.Shift, error)
 }
 
 type shiftRepository struct {
@@ -24,9 +24,9 @@ func NewShiftRepository(db *gorm.DB) ShiftRepository {
 	return &shiftRepository{db}
 }
 
-func (r *shiftRepository) GetAll() ([]model.Shift, error) {
+func (r *shiftRepository) GetAll(orgID uint) ([]model.Shift, error) {
 	var shifts []model.Shift
-	err := r.db.Find(&shifts).Error
+	err := r.db.Where("organisasi_id = ?", orgID).Find(&shifts).Error
 	return shifts, err
 }
 
@@ -48,10 +48,10 @@ func (r *shiftRepository) GetByID(id uint) (*model.Shift, error) {
 	return &shift, err
 }
 
-func (r *shiftRepository) FindOrCreate(jamMasuk, jamPulang string) (*model.Shift, error) {
+func (r *shiftRepository) FindOrCreate(orgID uint, jamMasuk, jamPulang string) (*model.Shift, error) {
 	var shift model.Shift
-	// Cek apakah shift dengan jam tersebut sudah ada
-	err := r.db.Where("jam_masuk = ? AND jam_pulang = ?", jamMasuk, jamPulang).First(&shift).Error
+	// Cek apakah shift dengan jam tersebut sudah ada di organisasi ini
+	err := r.db.Where("organisasi_id = ? AND jam_masuk = ? AND jam_pulang = ?", orgID, jamMasuk, jamPulang).First(&shift).Error
 	if err == nil {
 		return &shift, nil
 	}
@@ -59,9 +59,10 @@ func (r *shiftRepository) FindOrCreate(jamMasuk, jamPulang string) (*model.Shift
 	if err == gorm.ErrRecordNotFound {
 		// Buat shift baru jika belum ada
 		newShift := model.Shift{
-			NamaShift: fmt.Sprintf("%s-%s", jamMasuk, jamPulang),
-			JamMasuk:  jamMasuk,
-			JamPulang: jamPulang,
+			OrganisasiID: orgID,
+			NamaShift:    fmt.Sprintf("%s-%s", jamMasuk, jamPulang),
+			JamMasuk:     jamMasuk,
+			JamPulang:    jamPulang,
 		}
 		if err := r.db.Create(&newShift).Error; err != nil {
 			return nil, err

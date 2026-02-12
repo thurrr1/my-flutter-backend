@@ -398,6 +398,18 @@ type CreateASNRequest struct {
 	NoHP     string `json:"no_hp"`
 }
 
+// Helper function to Title Case (Simple Version)
+func toTitleCase(s string) string {
+	if s == "" {
+		return ""
+	}
+	// Convert to lowercase first, then Title Case
+	// Note: strings.Title is deprecated, but for simple use case without external lib (golang.org/x/text) it works.
+	// Better alternative: cases.Title(language.Und).String(s) if library available.
+	// For now using simple approach compatible with stdlib only.
+	return strings.Title(strings.ToLower(s))
+}
+
 func (h *ASNHandler) CreateASN(c *fiber.Ctx) error {
 	orgID := uint(c.Locals("organisasi_id").(float64))
 	var req CreateASNRequest
@@ -408,7 +420,7 @@ func (h *ASNHandler) CreateASN(c *fiber.Ctx) error {
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 
 	asn := model.ASN{
-		Nama:         req.Nama,
+		Nama:         toTitleCase(req.Nama), // Standardize Name
 		NIP:          req.NIP,
 		Password:     string(hashedPassword),
 		Jabatan:      req.Jabatan,
@@ -444,7 +456,7 @@ func (h *ASNHandler) ImportASN(c *fiber.Ctx) error {
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 
 		asn := model.ASN{
-			Nama:         req.Nama,
+			Nama:         toTitleCase(req.Nama), // Standardize Name
 			NIP:          req.NIP,
 			Password:     string(hashedPassword),
 			Jabatan:      req.Jabatan,
@@ -477,7 +489,8 @@ func (h *ASNHandler) UpdateASN(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pegawai tidak ditemukan"})
 	}
 
-	asn.Nama = req.Nama
+	asn.Nama = toTitleCase(req.Nama) // Standardize Name
+
 	asn.Jabatan = req.Jabatan
 	asn.Bidang = req.Bidang
 	asn.IsActive = req.IsActive // Update Status Aktif/Nonaktif

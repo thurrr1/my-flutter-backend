@@ -7,8 +7,8 @@ import (
 )
 
 type BannerRepository interface {
-	GetAllActive() ([]model.Banner, error) // Untuk Mobile
-	GetAll() ([]model.Banner, error)       // Untuk Admin
+	GetAllActive(orgID uint) ([]model.Banner, error) // Untuk Mobile
+	GetAll(orgID uint) ([]model.Banner, error)       // Untuk Admin
 	Create(banner *model.Banner) error
 	Delete(id uint) error
 	ToggleStatus(id uint) error
@@ -22,15 +22,15 @@ func NewBannerRepository(db *gorm.DB) BannerRepository {
 	return &bannerRepository{db}
 }
 
-func (r *bannerRepository) GetAll() ([]model.Banner, error) {
+func (r *bannerRepository) GetAll(orgID uint) ([]model.Banner, error) {
 	var banners []model.Banner
-	err := r.db.Order("created_at desc").Find(&banners).Error
+	err := r.db.Where("organisasi_id = ?", orgID).Order("created_at desc").Find(&banners).Error
 	return banners, err
 }
 
-func (r *bannerRepository) GetAllActive() ([]model.Banner, error) {
+func (r *bannerRepository) GetAllActive(orgID uint) ([]model.Banner, error) {
 	var banners []model.Banner
-	err := r.db.Where("is_active = ?", true).Order("created_at desc").Find(&banners).Error
+	err := r.db.Where("organisasi_id = ? AND is_active = ?", orgID, true).Order("created_at desc").Find(&banners).Error
 	return banners, err
 }
 

@@ -18,9 +18,10 @@ type Jadwal struct {
 
 type Shift struct {
 	gorm.Model
-	NamaShift string `json:"nama_shift"`
-	JamMasuk  string `json:"jam_masuk"`
-	JamPulang string `json:"jam_pulang"`
+	OrganisasiID uint   `json:"organisasi_id"`
+	NamaShift    string `json:"nama_shift"`
+	JamMasuk     string `json:"jam_masuk"`
+	JamPulang    string `json:"jam_pulang"`
 }
 
 type Device struct {
@@ -34,15 +35,17 @@ type Device struct {
 
 type Banner struct {
 	gorm.Model
-	Title    string `json:"title"`
-	Foto     string `json:"foto"`
-	IsActive bool   `json:"is_active" gorm:"default:true"`
+	OrganisasiID uint   `json:"organisasi_id"`
+	Title        string `json:"title"`
+	Foto         string `json:"foto"`
+	IsActive     bool   `json:"is_active" gorm:"default:true"`
 }
 
 type HariLibur struct {
 	gorm.Model
-	Tanggal    string `json:"tanggal" gorm:"unique;not null"` // Format YYYY-MM-DD
-	Keterangan string `json:"keterangan"`
+	OrganisasiID uint   `json:"organisasi_id"`
+	Tanggal      string `json:"tanggal" gorm:"not null"` // Hapus unique global, biar bisa beda per org
+	Keterangan   string `json:"keterangan"`
 }
 
 type Organisasi struct {

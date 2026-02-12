@@ -7,10 +7,10 @@ import (
 )
 
 type HariLiburRepository interface {
-	GetAll() ([]model.HariLibur, error)
+	GetAll(orgID uint) ([]model.HariLibur, error)
 	Create(libur *model.HariLibur) error
 	Delete(id uint) error
-	IsHoliday(date string) (bool, error)
+	IsHoliday(date string, orgID uint) (bool, error)
 	GetByID(id uint) (*model.HariLibur, error)
 	Update(libur *model.HariLibur) error
 }
@@ -23,9 +23,9 @@ func NewHariLiburRepository(db *gorm.DB) HariLiburRepository {
 	return &hariLiburRepository{db}
 }
 
-func (r *hariLiburRepository) GetAll() ([]model.HariLibur, error) {
+func (r *hariLiburRepository) GetAll(orgID uint) ([]model.HariLibur, error) {
 	var liburs []model.HariLibur
-	err := r.db.Order("tanggal desc").Find(&liburs).Error
+	err := r.db.Where("organisasi_id = ?", orgID).Order("tanggal desc").Find(&liburs).Error
 	return liburs, err
 }
 
@@ -37,9 +37,9 @@ func (r *hariLiburRepository) Delete(id uint) error {
 	return r.db.Delete(&model.HariLibur{}, id).Error
 }
 
-func (r *hariLiburRepository) IsHoliday(date string) (bool, error) {
+func (r *hariLiburRepository) IsHoliday(date string, orgID uint) (bool, error) {
 	var count int64
-	err := r.db.Model(&model.HariLibur{}).Where("tanggal = ?", date).Count(&count).Error
+	err := r.db.Model(&model.HariLibur{}).Where("tanggal = ? AND organisasi_id = ?", date, orgID).Count(&count).Error
 	if err != nil {
 		return false, err
 	}

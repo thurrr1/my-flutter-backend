@@ -54,7 +54,9 @@ func (r *asnRepository) Create(asn *model.ASN) error {
 }
 
 func (r *asnRepository) Update(asn *model.ASN) error {
-	return r.db.Save(asn).Error
+	// Omit "Role" agar GORM tidak bingung dengan data Role yang ter-preload
+	// saat kita hanya ingin mengupdate role_id (Foreign Key)
+	return r.db.Omit("Role").Save(asn).Error
 }
 
 func (r *asnRepository) Delete(id uint) error {

@@ -18,7 +18,8 @@ func NewShiftHandler(repo repository.ShiftRepository, jadwalRepo repository.Jadw
 }
 
 func (h *ShiftHandler) GetAll(c *fiber.Ctx) error {
-	shifts, err := h.repo.GetAll()
+	orgID := uint(c.Locals("organisasi_id").(float64))
+	shifts, err := h.repo.GetAll(orgID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data shift"})
 	}
@@ -26,10 +27,13 @@ func (h *ShiftHandler) GetAll(c *fiber.Ctx) error {
 }
 
 func (h *ShiftHandler) Create(c *fiber.Ctx) error {
+	orgID := uint(c.Locals("organisasi_id").(float64))
 	var shift model.Shift
 	if err := c.BodyParser(&shift); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
 	}
+
+	shift.OrganisasiID = orgID // Set Org ID
 
 	if err := h.repo.Create(&shift); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal membuat shift"})

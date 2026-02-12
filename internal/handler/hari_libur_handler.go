@@ -17,7 +17,8 @@ func NewHariLiburHandler(repo repository.HariLiburRepository) *HariLiburHandler 
 }
 
 func (h *HariLiburHandler) GetAll(c *fiber.Ctx) error {
-	data, err := h.repo.GetAll()
+	orgID := uint(c.Locals("organisasi_id").(float64))
+	data, err := h.repo.GetAll(orgID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengambil data"})
 	}
@@ -25,10 +26,13 @@ func (h *HariLiburHandler) GetAll(c *fiber.Ctx) error {
 }
 
 func (h *HariLiburHandler) Create(c *fiber.Ctx) error {
+	orgID := uint(c.Locals("organisasi_id").(float64))
 	var req model.HariLibur
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
 	}
+
+	req.OrganisasiID = orgID // Set Org ID
 
 	if err := h.repo.Create(&req); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menyimpan data"})
