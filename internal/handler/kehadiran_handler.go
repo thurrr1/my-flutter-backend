@@ -13,11 +13,12 @@ import (
 type KehadiranHandler struct {
 	repo       repository.KehadiranRepository
 	asnRepo    repository.ASNRepository
-	jadwalRepo repository.JadwalRepository // Tambah ini
+	jadwalRepo repository.JadwalRepository     // Tambah ini
+	orgRepo    repository.OrganisasiRepository // Tambah ini (Organisasi)
 }
 
-func NewKehadiranHandler(repo repository.KehadiranRepository, asnRepo repository.ASNRepository, jadwalRepo repository.JadwalRepository) *KehadiranHandler {
-	return &KehadiranHandler{repo: repo, asnRepo: asnRepo, jadwalRepo: jadwalRepo}
+func NewKehadiranHandler(repo repository.KehadiranRepository, asnRepo repository.ASNRepository, jadwalRepo repository.JadwalRepository, orgRepo repository.OrganisasiRepository) *KehadiranHandler {
+	return &KehadiranHandler{repo: repo, asnRepo: asnRepo, jadwalRepo: jadwalRepo, orgRepo: orgRepo}
 }
 
 type CheckInRequest struct {
@@ -51,21 +52,39 @@ func (h *KehadiranHandler) CheckIn(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Jadwal kerja hari ini belum ditentukan. Hubungi Admin."})
 	}
 
-	// 4. Ambil Lokasi Kantor & Validasi Radius
-	lokasiKantor, err := h.asnRepo.GetLokasiByOrganisasiID(orgID)
+	// 4. Ambil Semua Lokasi Kantor & Validasi Radius
+	org, err := h.orgRepo.GetByID(orgID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Lokasi kantor tidak ditemukan"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Data organisasi tidak ditemukan"})
 	}
 
-	jarak := calculateDistance(req.Latitude, req.Longitude, lokasiKantor.Latitude, lokasiKantor.Longitude)
+	statusLokasiMasuk := "INVALID"
+	minJarak := math.MaxFloat64
+	var validLokasiID *uint
 
-	// Debugging: Tampilkan jarak di console server
-	// fmt.Printf("Jarak user ke kantor: %.2f meter (Radius: %d)\n", jarak, lokasiKantor.RadiusMeter)
-
-	statusLokasiMasuk := "VALID"
-	if jarak > float64(lokasiKantor.RadiusMeter) {
-		statusLokasiMasuk = "INVALID"
+	if len(org.Lokasis) == 0 {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Belum ada lokasi kantor yang disetting"})
 	}
+
+	for i := range org.Lokasis {
+		loc := &org.Lokasis[i]
+		jarak := calculateDistance(req.Latitude, req.Longitude, loc.Latitude, loc.Longitude)
+
+		if jarak <= float64(loc.RadiusMeter) {
+			statusLokasiMasuk = "VALID"
+			validLokasiID = &loc.ID
+			minJarak = jarak
+			break // Found valid location, stop searching
+		}
+
+		// Keep track of closest location even if invalid
+		if jarak < minJarak {
+			minJarak = jarak
+		}
+	}
+
+	// Use closest distance for reporting
+	jarak := minJarak
 
 	// 5. Tentukan Status (HADIR / TERLAMBAT)
 	statusMasuk := "HADIR"
@@ -82,7 +101,8 @@ func (h *KehadiranHandler) CheckIn(c *fiber.Ctx) error {
 
 	kehadiran := model.Kehadiran{
 		ASNID:             asnID,
-		JadwalID:          jadwal.ID, // Simpan ID Jadwal
+		JadwalID:          jadwal.ID,     // Simpan ID Jadwal
+		LokasiID:          validLokasiID, // Simpan Lokasi Valid (jika ada)
 		Tanggal:           now.Format("2006-01-02"),
 		JamMasukReal:      now.Format("15:04:05"),
 		KoordinatMasuk:    fmt.Sprintf("%f,%f", req.Latitude, req.Longitude),
@@ -146,13 +166,35 @@ func (h *KehadiranHandler) CheckOut(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Jadwal kerja tidak ditemukan."})
 	}
 
-	// 4. Validasi Lokasi
-	lokasiKantor, err := h.asnRepo.GetLokasiByOrganisasiID(orgID)
+	// 4. Validasi Lokasi (Multi-Location)
+	org, err := h.orgRepo.GetByID(orgID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Lokasi kantor tidak ditemukan"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Data organisasi tidak ditemukan"})
 	}
 
-	jarak := calculateDistance(req.Latitude, req.Longitude, lokasiKantor.Latitude, lokasiKantor.Longitude)
+	if len(org.Lokasis) == 0 {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Belum ada lokasi kantor yang disetting"})
+	}
+
+	statusLokasiPulang := "INVALID"
+	minJarak := math.MaxFloat64
+
+	for i := range org.Lokasis {
+		loc := &org.Lokasis[i]
+		jarak := calculateDistance(req.Latitude, req.Longitude, loc.Latitude, loc.Longitude)
+
+		if jarak <= float64(loc.RadiusMeter) {
+			statusLokasiPulang = "VALID"
+			minJarak = jarak
+			break
+		}
+
+		if jarak < minJarak {
+			minJarak = jarak
+		}
+	}
+
+	jarak := minJarak
 
 	// 5. Update Data Pulang
 	now := time.Now()
@@ -183,10 +225,7 @@ func (h *KehadiranHandler) CheckOut(c *fiber.Ctx) error {
 	attendance.StatusPulang = statusPulang
 
 	// Validasi Radius Pulang
-	attendance.StatusLokasiPulang = "VALID"
-	if jarak > float64(lokasiKantor.RadiusMeter) {
-		attendance.StatusLokasiPulang = "INVALID"
-	}
+	attendance.StatusLokasiPulang = statusLokasiPulang
 
 	if err := h.repo.Update(attendance); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menyimpan data pulang"})
@@ -308,6 +347,69 @@ func (h *KehadiranHandler) GetTodayStatus(c *fiber.Ctx) error {
 		"status":  kehadiran.StatusMasuk, // HADIR, TERLAMBAT, IZIN, CUTI
 		"data":    kehadiran,
 		"jadwal":  jadwalInfo,
+	})
+}
+
+func (h *KehadiranHandler) CheckLocationValidity(c *fiber.Ctx) error {
+	// 1. Ambil Data User
+	orgID := uint(c.Locals("organisasi_id").(float64))
+
+	var req CheckInRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	// 2. Ambil Organisasi & Lokasi
+	org, err := h.orgRepo.GetByID(orgID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Data organisasi tidak ditemukan"})
+	}
+
+	if len(org.Lokasis) == 0 {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Belum ada lokasi kantor yang disetting"})
+	}
+
+	// 3. Cek Lokasi (Multi-Location Logic)
+	statusLokasi := "INVALID"
+	minJarak := math.MaxFloat64
+	var lokasiTerdekat interface{}
+
+	for i := range org.Lokasis {
+		loc := &org.Lokasis[i]
+		jarak := calculateDistance(req.Latitude, req.Longitude, loc.Latitude, loc.Longitude)
+
+		if jarak <= float64(loc.RadiusMeter) {
+			statusLokasi = "VALID"
+			minJarak = jarak
+			lokasiTerdekat = fiber.Map{
+				"id":           loc.ID,
+				"nama_lokasi":  loc.NamaLokasi,
+				"alamat":       loc.Alamat,
+				"latitude":     loc.Latitude,
+				"longitude":    loc.Longitude,
+				"radius_meter": loc.RadiusMeter,
+			}
+			break // Found valid location
+		}
+
+		if jarak < minJarak {
+			minJarak = jarak
+			lokasiTerdekat = fiber.Map{
+				"id":           loc.ID,
+				"nama_lokasi":  loc.NamaLokasi,
+				"alamat":       loc.Alamat,
+				"latitude":     loc.Latitude,
+				"longitude":    loc.Longitude,
+				"radius_meter": loc.RadiusMeter,
+			}
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"message":         "Pengecekan lokasi berhasil",
+		"status_lokasi":   statusLokasi,
+		"jarak_terdekat":  minJarak,
+		"lokasi_terdekat": lokasiTerdekat,
 	})
 }
 

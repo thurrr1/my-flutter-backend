@@ -6,6 +6,7 @@ import (
 	"my-flutter-backend/internal/repository"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -91,6 +92,118 @@ func (h *PerizinanHandler) AjukanIzin(c *fiber.Ctx) error {
 		"message": "Pengajuan izin berhasil dikirim",
 		"data":    izin,
 	})
+}
+
+func (h *PerizinanHandler) EditIzin(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID tidak valid"})
+	}
+
+	asnID := uint(c.Locals("user_id").(float64))
+
+	// Cek Data Lama
+	izin, err := h.repo.GetByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Data izin tidak ditemukan"})
+	}
+
+	// Validasi Pemilik
+	if izin.ASNID != asnID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Anda tidak berhak mengubah data ini"})
+	}
+
+	// Validasi Status (Hanya MENUNGGU yang boleh diedit)
+	if izin.Status != "MENUNGGU" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak dapat diubah karena status sudah " + izin.Status})
+	}
+
+	// Parse Request Baru
+	var req PengajuanIzinRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak valid"})
+	}
+
+	// Validasi Tanggal
+	if _, err := time.Parse("2006-01-02", req.TanggalMulai); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format tanggal mulai salah"})
+	}
+	if _, err := time.Parse("2006-01-02", req.TanggalSelesai); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format tanggal selesai salah"})
+	}
+
+	// Handle File Upload Baru (Jika Ada)
+	file, errFile := c.FormFile("file_bukti")
+	if errFile == nil {
+		// Hapus file lama jika ada
+		if izin.PathFile != "" {
+			os.Remove(izin.PathFile)
+		}
+
+		// Upload file baru
+		uploadDir := "./uploads/perizinan"
+		if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+			os.MkdirAll(uploadDir, 0755)
+		}
+		filename := fmt.Sprintf("%d_%d_%s", asnID, time.Now().Unix(), filepath.Base(file.Filename))
+		pathFile := fmt.Sprintf("uploads/perizinan/%s", filename)
+		c.SaveFile(file, pathFile)
+
+		izin.PathFile = pathFile
+	}
+
+	// Update Fields
+	izin.Tipe = req.Tipe
+	izin.Jenis = req.JenisIzin
+	izin.TanggalMulai = req.TanggalMulai
+	izin.TanggalSelesai = req.TanggalSelesai
+	izin.Alasan = req.Keterangan
+
+	if err := h.repo.Update(izin); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal update data izin"})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Data perizinan berhasil diperbarui",
+		"data":    izin,
+	})
+}
+
+func (h *PerizinanHandler) DeleteIzin(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID tidak valid"})
+	}
+
+	asnID := uint(c.Locals("user_id").(float64))
+
+	// Cek Data
+	izin, err := h.repo.GetByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Data izin tidak ditemukan"})
+	}
+
+	// Validasi Pemilik
+	if izin.ASNID != asnID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Anda tidak berhak menghapus data ini"})
+	}
+
+	// Validasi Status
+	if izin.Status != "MENUNGGU" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Data tidak dapat dihapus karena status sudah " + izin.Status})
+	}
+
+	// Hapus File Bukti scara fisik (opsional, tapi baik untuk kebersihan)
+	if izin.PathFile != "" {
+		os.Remove(izin.PathFile)
+	}
+
+	// Hapus dari DB
+	if err := h.repo.Delete(uint(id)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menghapus data izin"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Data perizinan berhasil dihapus"})
 }
 
 func (h *PerizinanHandler) GetRiwayatIzin(c *fiber.Ctx) error {

@@ -63,58 +63,53 @@ func (r *dashboardRepository) GetDashboardStats(orgID uint, date string, month i
 	stats["hari_ini"] = dailyMap
 
 	// 3. Statistik Bulanan (Bulan Ini)
-	var monthly []struct {
+	var monthlyRecords []struct {
 		StatusMasuk          string
+		StatusPulang         string
 		PerizinanKehadiranID *uint
-		Count                int64
 	}
 	monthStr := fmt.Sprintf("%02d", month)
 	yearStr := strconv.Itoa(year)
 
-	// Modified Query to include Perizinan checks
+	// Fetch raw data to process logic in Go (avoid double counting)
 	r.db.Table("kehadirans").
 		Joins("JOIN asns ON asns.id = kehadirans.asn_id").
 		Where("asns.organisasi_id = ? AND kehadirans.bulan = ? AND kehadirans.tahun = ?", orgID, monthStr, yearStr).
-		Select("status_masuk, perizinan_kehadiran_id, count(*) as count").
-		Group("status_masuk, perizinan_kehadiran_id").Scan(&monthly)
+		Select("status_masuk, status_pulang, perizinan_kehadiran_id").
+		Scan(&monthlyRecords)
 
-	monthlyMap := map[string]int64{"HADIR": 0, "TERLAMBAT": 0, "IZIN": 0, "CUTI": 0, "TL_CP_DIIZINKAN": 0}
+	monthlyMap := map[string]int64{"HADIR": 0, "TERLAMBAT": 0, "TL_CP_DIIZINKAN": 0, "IZIN": 0, "CUTI": 0}
 
-	for _, m := range monthly {
-		if m.StatusMasuk == "TERLAMBAT" {
-			if m.PerizinanKehadiranID != nil {
-				monthlyMap["TL_CP_DIIZINKAN"] += m.Count
-			} else {
-				monthlyMap["TERLAMBAT"] += m.Count
-			}
-		} else {
-			if count, ok := monthlyMap[m.StatusMasuk]; ok {
-				monthlyMap[m.StatusMasuk] = count + m.Count
-			} else {
-				// Handle other statuses if necessary
-				monthlyMap[m.StatusMasuk] += m.Count
-			}
+	for _, m := range monthlyRecords {
+		// 1. Handle Cuti/Izin explicit status
+		if m.StatusMasuk == "CUTI" {
+			monthlyMap["CUTI"]++
+			continue
 		}
-	}
+		if m.StatusMasuk == "IZIN" {
+			monthlyMap["IZIN"]++
+			continue
+		}
 
-	// Hitung Pulang Cepat Bulan Ini
-	var pcStats []struct {
-		PerizinanKehadiranID *uint
-		Count                int64
-	}
-	r.db.Table("kehadirans").
-		Joins("JOIN asns ON asns.id = kehadirans.asn_id").
-		Where("asns.organisasi_id = ? AND kehadirans.bulan = ? AND kehadirans.tahun = ? AND status_pulang = ?", orgID, monthStr, yearStr, "PULANG_CEPAT").
-		Select("perizinan_kehadiran_id, count(*) as count").
-		Group("perizinan_kehadiran_id").
-		Scan(&pcStats)
+		// 2. Handle Hadir / Terlambat / Pulang Cepat
+		// Logic: If Late OR Early -> Problematic. If Permit -> Excused. Else -> Unexcused.
+		hasIssue := m.StatusMasuk == "TERLAMBAT" || m.StatusPulang == "PULANG_CEPAT"
 
-	for _, pc := range pcStats {
-		if pc.PerizinanKehadiranID != nil {
-			monthlyMap["TL_CP_DIIZINKAN"] += pc.Count
+		if m.PerizinanKehadiranID != nil {
+			if hasIssue {
+				monthlyMap["TL_CP_DIIZINKAN"]++
+			} else {
+				// Has permit but no issue (e.g. permit for leaving early but didn't leave early?)
+				// Count as Hadir (Perfect Attendance equivalent)
+				monthlyMap["HADIR"]++
+			}
 		} else {
-			// Asumsi Pulang Cepat masuk ke kategori TL/CP (Warning) jika tanpa izin
-			monthlyMap["TERLAMBAT"] += pc.Count
+			if hasIssue {
+				monthlyMap["TERLAMBAT"]++ // Maps to 'tl_cp' (Unexcused) in output
+			} else {
+				// No issue -> Perfect Attendance
+				monthlyMap["HADIR"]++
+			}
 		}
 	}
 

@@ -22,6 +22,8 @@ func SetupPerizinanRoutes(app *fiber.App, db *gorm.DB) {
 	// Endpoint untuk Pegawai
 	api.Post("/cuti", hdl.AjukanIzin)
 	api.Get("/riwayat", hdl.GetRiwayatIzin)
+	api.Put("/cuti/:id", hdl.EditIzin)
+	api.Delete("/cuti/:id", hdl.DeleteIzin)
 
 	// Endpoint untuk Atasan (Approval)
 	api.Get("/bawahan", hdl.GetPengajuanBawahan)

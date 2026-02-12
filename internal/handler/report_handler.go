@@ -108,9 +108,10 @@ func (h *ReportHandler) GetMonthlyRecap(c *fiber.Ctx) error {
 					// Cek Validitas Lokasi (User Request: Invalid & No Permit = TK)
 					isLokasiValid := k.StatusLokasiMasuk == "VALID"
 					hasIzinLokasi := k.PerizinanLokasiID != nil
+					isCutiOrIzin := k.StatusMasuk == "CUTI" || k.StatusMasuk == "IZIN"
 
-					if !isLokasiValid && !hasIzinLokasi {
-						// Lokasi Invalid & Tidak Ada Izin -> Hitung TK
+					if !isLokasiValid && !hasIzinLokasi && !isCutiOrIzin {
+						// Lokasi Invalid & Tidak Ada Izin & Bukan Cuti/Izin -> Hitung TK
 						code = "-"
 						tk++
 					} else {
@@ -271,11 +272,13 @@ func (h *ReportHandler) GetMonthlyRecapByAtasan(c *fiber.Ctx) error {
 				// Cek Kehadiran
 				if k, attended := attendanceMap[jadwal.ID]; attended {
 					// Cek Validitas Lokasi / Izin Lokasi
+					// Cek Validitas Lokasi / Izin Lokasi
 					isLokasiValid := k.StatusLokasiMasuk == "VALID"
 					hasIzinLokasi := k.PerizinanLokasiID != nil
+					isCutiOrIzin := k.StatusMasuk == "CUTI" || k.StatusMasuk == "IZIN"
 
-					if !isLokasiValid && !hasIzinLokasi {
-						// Invalid Lokasi & No Permit -> Treat as TK (Alfa)
+					if !isLokasiValid && !hasIzinLokasi && !isCutiOrIzin {
+						// Invalid Lokasi & No Permit & Not Cuti/Izin -> Treat as TK (Alfa)
 						totalAlfa++
 					} else {
 						// Valid Attendance Logic
@@ -288,27 +291,25 @@ func (h *ReportHandler) GetMonthlyRecapByAtasan(c *fiber.Ctx) error {
 							// Handle Hadir logic
 							// Cek Status Izin (PerizinanKehadiranID)
 
-							if k.PerizinanKehadiranID != nil {
-								// Jika ada izin status (misal izin terlambat), masuk kategori Diizinkan
-								if k.StatusMasuk == "TERLAMBAT" || k.StatusPulang == "PULANG_CEPAT" {
-									totalTlCpDiizinkan++
-								}
-								// Jika HADIR tapi punya izin status? Jarang terjadi, tapi anggap Hadir Tepat Waktu jika StatusMasuk=HADIR
-							} else {
-								// Tidak ada izin status
-								if k.StatusMasuk == "TERLAMBAT" {
-									totalTlCp++
-								}
-								if k.StatusPulang == "PULANG_CEPAT" {
-									// Jika CP tapi Masuk Tepat Waktu -> Tambah ke TL_CP ?
-									// Jika Masuk Terlambat & Pulang Cepat -> Double count di TL_CP ?
-									// Dashboard Repo logic: SUM(TERLAMBAT) + SUM(PULANG_CEPAT). So yes, double count impact.
-									totalTlCp++
-								}
-							}
+							// Cek apakah ada masalah kehadiran (Telat atau Pulang Cepat)
+							hasIssue := k.StatusMasuk == "TERLAMBAT" || k.StatusPulang == "PULANG_CEPAT"
 
-							if k.StatusMasuk == "HADIR" {
-								totalHadirTepatWaktu++
+							if k.PerizinanKehadiranID != nil {
+								// Ada Izin Status
+								if hasIssue {
+									totalTlCpDiizinkan++
+								} else {
+									// Punya izin tapi tidak telat/cp -> Hadir Tepat Waktu
+									totalHadirTepatWaktu++
+								}
+							} else {
+								// Tidak Ada Izin Status
+								if hasIssue {
+									totalTlCp++
+								} else {
+									// Tidak telat & tidak cp -> Hadir Tepat Waktu
+									totalHadirTepatWaktu++
+								}
 							}
 						}
 					}
@@ -411,7 +412,7 @@ func (h *ReportHandler) GetDailyRecap(c *fiber.Ctx) error {
 				} else if k.StatusMasuk == "TERLAMBAT" {
 					row["keterangan"] = "TL"
 				} else if k.StatusPulang == "PULANG_CEPAT" {
-					row["keterangan"] = "PC"
+					row["keterangan"] = "CP"
 				}
 
 				// Izin Status override keterangan? Atau append?

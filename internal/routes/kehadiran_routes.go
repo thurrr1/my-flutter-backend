@@ -12,8 +12,9 @@ import (
 func SetupKehadiranRoutes(app *fiber.App, db *gorm.DB) {
 	asnRepo := repository.NewASNRepository(db)
 	kehadiranRepo := repository.NewKehadiranRepository(db)
-	jadwalRepo := repository.NewJadwalRepository(db) // Tambah ini
-	hdl := handler.NewKehadiranHandler(kehadiranRepo, asnRepo, jadwalRepo)
+	jadwalRepo := repository.NewJadwalRepository(db)
+	orgRepo := repository.NewOrganisasiRepository(db) // Tambah ini
+	hdl := handler.NewKehadiranHandler(kehadiranRepo, asnRepo, jadwalRepo, orgRepo)
 
 	// Grouping route khusus kehadiran
 	api := app.Group("/api/kehadiran", middleware.Auth)
@@ -23,4 +24,5 @@ func SetupKehadiranRoutes(app *fiber.App, db *gorm.DB) {
 	api.Get("/riwayat", hdl.GetHistory)
 	api.Get("/status-hari-ini", hdl.GetTodayStatus)
 	api.Get("/rekap", hdl.GetRekap)
+	api.Post("/check-location", hdl.CheckLocationValidity)
 }

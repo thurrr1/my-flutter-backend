@@ -326,7 +326,7 @@ func (h *JadwalHandler) GetJadwalHarian(c *fiber.Ctx) error {
 			} else if k.StatusMasuk == "CUTI" {
 				status = "CUTI"
 			} else if k.StatusMasuk == "TERLAMBAT" || k.StatusPulang == "PULANG_CEPAT" {
-				status = "TERLAMBAT"
+				status = "TL/CP"
 				if k.PerizinanKehadiranID != nil {
 					status += " (Diizinkan)"
 				}

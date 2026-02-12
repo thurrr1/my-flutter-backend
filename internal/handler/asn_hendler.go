@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/rand"
+	"my-flutter-backend/config"
 	"my-flutter-backend/internal/model"
 	"my-flutter-backend/internal/repository"
 	"os"
@@ -693,10 +694,10 @@ func (h *ASNHandler) RequestOTP(c *fiber.Ctx) error {
 func sendOTPEmail(toEmail, namaUser, otpCode string) error {
 	// KONFIGURASI SMTP (Ganti dengan kredensial asli atau ambil dari ENV)
 	// Jika menggunakan Gmail, pastikan menggunakan "App Password", bukan password login biasa.
-	smtpHost := "smtp.gmail.com"
-	smtpPort := 587
-	smtpUser := "rahmanthur1@gmail.com" // GANTI DENGAN EMAIL PENGIRIM
-	smtpPass := "jtso acbi quto aenp"   // GANTI DENGAN APP PASSWORD
+	smtpHost := config.GetEnv("SMTP_HOST", "smtp.gmail.com")
+	smtpPort := config.GetEnvAsInt("SMTP_PORT", 587)
+	smtpUser := config.GetEnv("SMTP_USER", "email@example.com") // GANTI DENGAN EMAIL PENGIRIM
+	smtpPass := config.GetEnv("SMTP_PASS", "your-app-password") // GANTI DENGAN APP PASSWORD
 
 	m := gomail.NewMessage()
 	m.SetHeader("From", smtpUser)

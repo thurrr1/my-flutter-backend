@@ -12,6 +12,7 @@ type PerizinanKehadiranRepository interface {
 	GetByAtasanID(atasanID uint) ([]model.PerizinanKehadiran, error)
 	GetByID(id uint) (*model.PerizinanKehadiran, error)
 	Update(koreksi *model.PerizinanKehadiran) error
+	Delete(id uint) error
 }
 
 type perizinanKehadiranRepository struct {
@@ -50,4 +51,8 @@ func (r *perizinanKehadiranRepository) GetByID(id uint) (*model.PerizinanKehadir
 
 func (r *perizinanKehadiranRepository) Update(koreksi *model.PerizinanKehadiran) error {
 	return r.db.Save(koreksi).Error
+}
+
+func (r *perizinanKehadiranRepository) Delete(id uint) error {
+	return r.db.Delete(&model.PerizinanKehadiran{}, id).Error
 }

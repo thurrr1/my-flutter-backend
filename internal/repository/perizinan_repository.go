@@ -12,6 +12,7 @@ type PerizinanRepository interface {
 	GetByAtasanID(atasanID uint) ([]model.PerizinanCuti, error)
 	GetByID(id uint) (*model.PerizinanCuti, error)
 	Update(izin *model.PerizinanCuti) error
+	Delete(id uint) error
 }
 
 type perizinanRepository struct {
@@ -51,4 +52,8 @@ func (r *perizinanRepository) GetByID(id uint) (*model.PerizinanCuti, error) {
 
 func (r *perizinanRepository) Update(izin *model.PerizinanCuti) error {
 	return r.db.Save(izin).Error
+}
+
+func (r *perizinanRepository) Delete(id uint) error {
+	return r.db.Delete(&model.PerizinanCuti{}, id).Error
 }

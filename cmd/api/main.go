@@ -8,12 +8,18 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	fmt.Println("1. Memulai aplikasi... Mencoba koneksi ke Database...")
+	fmt.Println("1. Memulai aplikasi... Mencoba load .env...")
+	if err := godotenv.Load(); err != nil {
+		fmt.Println("Warning: File .env tidak ditemukan, menggunakan environment variables sistem.")
+	}
+
+	fmt.Println("2. Mencoba koneksi ke Database...")
 	config.ConnectDB()
-	fmt.Println("2. Database berhasil terhubung! Menyiapkan routes...")
+	fmt.Println("3. Database berhasil terhubung! Menyiapkan routes...")
 
 	app := fiber.New()
 
@@ -37,6 +43,6 @@ func main() {
 	routes.SetupRoleRoutes(app, config.DB)
 	routes.SetupReportRoutes(app, config.DB)
 
-	fmt.Println("3. Server siap! Menunggu request di port :3000")
+	fmt.Println("4. Server siap! Menunggu request di port :3000")
 	app.Listen(":3000")
 }

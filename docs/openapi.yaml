@@ -455,6 +455,46 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/kehadiran/check-location:
+    post:
+      summary: Cek Validitas Lokasi Tanpa Absen
+      tags: [Kehadiran]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                latitude:
+                  type: number
+                  example: -0.9416
+                longitude:
+                  type: number
+                  example: 100.3700
+      responses:
+        200:
+          description: Pengecekan Berhasil
+          content:
+            application/json:
+              example:
+                message: "Pengecekan lokasi berhasil"
+                status_lokasi: "VALID"
+                jarak_terdekat: 10.5
+                lokasi_terdekat:
+                  id: 1
+                  nama_lokasi: "Kantor Pusat"
+                  alamat: "Jl. Sudirman"
+                  latitude: -0.94
+                  longitude: 100.37
+                  radius_meter: 50
+        400:
+          description: Data tidak valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/kehadiran/checkout:
     post:
       summary: Absen Pulang
@@ -671,6 +711,50 @@ paths:
         200:
           description: Berhasil diajukan
 
+  /api/perizinan/cuti/{id}:
+    put:
+      summary: Edit Pengajuan Izin/Cuti
+      tags: [Perizinan]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                tipe:
+                  type: string
+                  enum: [IZIN, CUTI]
+                jenis_izin:
+                  type: string
+                tanggal_mulai:
+                  type: string
+                tanggal_selesai:
+                  type: string
+                keterangan:
+                  type: string
+                file_bukti:
+                  type: string
+                  format: binary
+      responses:
+        200:
+          description: Berhasil diupdate
+    delete:
+      summary: Hapus Pengajuan Izin/Cuti
+      tags: [Perizinan]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          description: Berhasil dihapus
+
   /api/perizinan/riwayat:
     get:
       summary: Riwayat Pengajuan Saya
@@ -738,6 +822,48 @@ paths:
       responses:
         200:
           description: Berhasil diajukan
+
+  /api/koreksi/ajukan/{id}:
+    put:
+      summary: Edit Pengajuan Koreksi
+      tags: [Koreksi]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                tanggal_kehadiran:
+                  type: string
+                tipe_koreksi:
+                  type: string
+                  enum: [TELAT, PULANG_CEPAT, LUAR_RADIUS]
+                is_lokasi:
+                  type: boolean
+                alasan:
+                  type: string
+                file_bukti:
+                  type: string
+                  format: binary
+      responses:
+        200:
+          description: Berhasil diupdate
+    delete:
+      summary: Hapus Pengajuan Koreksi
+      tags: [Koreksi]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          description: Berhasil dihapus
 
   /api/koreksi/riwayat:
     get:

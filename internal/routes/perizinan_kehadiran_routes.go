@@ -19,6 +19,8 @@ func SetupPerizinanKehadiranRoutes(app *fiber.App, db *gorm.DB) {
 
 	api.Post("/ajukan", hdl.AjukanKoreksi)
 	api.Get("/riwayat", hdl.GetRiwayat)
+	api.Put("/ajukan/:id", hdl.EditKoreksi)
+	api.Delete("/ajukan/:id", hdl.DeleteKoreksi)
 	api.Get("/bawahan", hdl.GetBawahan)
 	api.Post("/approval", hdl.ProcessApproval)
 }
