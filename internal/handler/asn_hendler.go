@@ -927,11 +927,12 @@ func (h *ASNHandler) ToggleActiveASN(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pegawai tidak ditemukan"})
 	}
 
-	asn.IsActive = req.IsActive
-	if err := h.repo.Update(asn); err != nil {
+	// Gunakan UpdateStatus agar aman dari issue GORM association
+	if err := h.repo.UpdateStatus(asn.ID, req.IsActive); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal update status pegawai"})
 	}
 
+	asn.IsActive = req.IsActive
 	status := "nonaktif"
 	if asn.IsActive {
 		status = "aktif"

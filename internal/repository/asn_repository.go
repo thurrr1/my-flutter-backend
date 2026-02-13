@@ -21,6 +21,7 @@ type ASNRepository interface {
 	GetAllByOrganisasiID(orgID uint) ([]model.ASN, error)
 	GetByAtasanID(atasanID uint) ([]model.ASN, error)
 	GetAdminsByOrganisasiID(orgID uint) ([]model.ASN, error)
+	UpdateStatus(id uint, isActive bool) error
 }
 
 type asnRepository struct {
@@ -124,4 +125,8 @@ func (r *asnRepository) GetAdminsByOrganisasiID(orgID uint) ([]model.ASN, error)
 		Where("asns.organisasi_id = ? AND roles.nama_role = ?", orgID, "Admin").
 		Preload("Role").Preload("Organisasi").Find(&asns).Error
 	return asns, err
+}
+
+func (r *asnRepository) UpdateStatus(id uint, isActive bool) error {
+	return r.db.Model(&model.ASN{}).Where("id = ?", id).Update("is_active", isActive).Error
 }
