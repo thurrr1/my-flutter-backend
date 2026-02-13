@@ -25,10 +25,10 @@ func SeedAll(db *gorm.DB) {
 
 	// 3. Seed Roles
 	roles := []model.Role{
-		{NamaRole: "Super Admin"}, // New Role
 		{NamaRole: "Admin"},
 		{NamaRole: "Atasan"},
 		{NamaRole: "Pegawai"},
+		{NamaRole: "Super Admin"}, // New Role
 	}
 	for _, r := range roles {
 		db.FirstOrCreate(&r, model.Role{NamaRole: r.NamaRole})
