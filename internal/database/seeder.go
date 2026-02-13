@@ -10,15 +10,19 @@ import (
 
 func SeedAll(db *gorm.DB) {
 	// 1. Seed Organisasi
-	org := model.Organisasi{NamaOrganisasi: "Dinas Komunikasi dan Informatika"}
+	org := model.Organisasi{
+		NamaOrganisasi: "Dinas Komunikasi dan Informatika",
+		EmailAdmin:     "diskominfo@padang.go.id",
+	}
 	db.FirstOrCreate(&org, model.Organisasi{NamaOrganisasi: org.NamaOrganisasi})
 
-	// 2. Seed Lokasi Kantor (Contoh Koordinat Kantor)
+	// 2. Seed Lokasi Kantor
 	lokasi := model.Lokasi{
 		OrganisasiID: org.ID,
-		NamaLokasi:   "Kantor Pusat Diskominfo",
-		Latitude:     -0.9416, // Ganti dengan koordinat kantor aslimu
-		Longitude:    100.3700,
+		NamaLokasi:   "Kantor Wali Kota",
+		Alamat:       "Aie Pacah, Kec. Koto Tangah, Kota Padang, Sumatera Barat 25586",
+		Latitude:     -0.87638986287172,
+		Longitude:    100.38780212238,
 		RadiusMeter:  50,
 	}
 	db.FirstOrCreate(&lokasi, model.Lokasi{NamaLokasi: lokasi.NamaLokasi})
@@ -55,8 +59,14 @@ func SeedAll(db *gorm.DB) {
 	var allPerms []model.Permission
 	db.Find(&allPerms)
 
-	// 0. Super Admin: Punya SEMUA permission
-	db.Model(&superAdminRole).Association("Permissions").Replace(allPerms)
+	// 0. Super Admin
+	var superAdminPerms []model.Permission
+	for _, p := range allPerms {
+		if p.NamaPermission != "approve_cuti" {
+			superAdminPerms = append(superAdminPerms, p)
+		}
+	}
+	db.Model(&superAdminRole).Association("Permissions").Replace(superAdminPerms)
 
 	// 1. Admin: Punya semua KECUALI 'kelola_organisasi'
 	var adminPerms []model.Permission
@@ -99,7 +109,7 @@ func SeedAll(db *gorm.DB) {
 
 	superAdminASN := model.ASN{
 		Nama:         "Super Administrator",
-		NIP:          "000000001", // NIP Khusus
+		NIP:          "000000001000000001", // NIP Khusus
 		Password:     string(hashedPassword),
 		Jabatan:      "IT Super Admin",
 		Bidang:       "Pusat Data",
@@ -138,7 +148,7 @@ func SeedAll(db *gorm.DB) {
 	// 8. Seed Pegawai (Bawahan dari Admin)
 	pegawaiASN := model.ASN{
 		Nama:         "Budi Pegawai",
-		NIP:          "987654321", // NIP Beda
+		NIP:          "987654321987654321", // NIP Beda
 		Password:     string(hashedPassword),
 		Jabatan:      "Staf Teknis",
 		Bidang:       "Informatika",

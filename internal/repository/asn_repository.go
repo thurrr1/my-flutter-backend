@@ -78,6 +78,8 @@ func (r *asnRepository) GetAll(search string) ([]model.ASN, error) {
 		query = query.Where("nama LIKE ? OR nip LIKE ?", searchPattern, searchPattern)
 	}
 
+	query = query.Order("role_id asc").Order("nama asc")
+
 	err := query.Find(&asns).Error
 	return asns, err
 }
@@ -120,9 +122,13 @@ func (r *asnRepository) GetByAtasanID(atasanID uint) ([]model.ASN, error) {
 
 func (r *asnRepository) GetAdminsByOrganisasiID(orgID uint) ([]model.ASN, error) {
 	var asns []model.ASN
-	// Join dengan roles untuk filter nama_role = 'Admin'
-	err := r.db.Joins("JOIN roles ON roles.id = asns.role_id").
-		Where("asns.organisasi_id = ? AND roles.nama_role = ?", orgID, "Admin").
+	// Filter berdasarkan Permission 'edit_jadwal'
+	// Join: ASN -> Role -> RolePermission -> Permission
+	err := r.db.Distinct().Table("asns").
+		Joins("JOIN roles ON roles.id = asns.role_id").
+		Joins("JOIN role_permissions ON role_permissions.role_id = roles.id").
+		Joins("JOIN permissions ON permissions.id = role_permissions.permission_id").
+		Where("permissions.nama_permission = ? AND asns.organisasi_id = ?", "edit_jadwal", orgID).
 		Preload("Role").Preload("Organisasi").Find(&asns).Error
 	return asns, err
 }
