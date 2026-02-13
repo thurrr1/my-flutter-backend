@@ -49,6 +49,11 @@ func (h *ASNHandler) Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "NIP atau Password salah"})
 	}
 
+	// Cek Status Aktif
+	if !asn.IsActive {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Akun Anda dinonaktifkan. Silakan hubungi Admin."})
+	}
+
 	// 2. Cek Password
 	err = bcrypt.CompareHashAndPassword([]byte(asn.Password), []byte(req.Password))
 	if err != nil {
@@ -137,6 +142,11 @@ func (h *ASNHandler) WebLogin(c *fiber.Ctx) error {
 	asn, err := h.repo.FindByNIP(req.NIP)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "NIP atau Password salah"})
+	}
+
+	// Cek Status Aktif
+	if !asn.IsActive {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Akun Anda dinonaktifkan. Silakan hubungi Admin."})
 	}
 
 	// 2. Cek Password
