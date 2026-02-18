@@ -862,6 +862,16 @@ paths:
           required: true
           schema:
             type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                alasan:
+                  type: string
+                  example: "Acara dibatalkan"
       responses:
         200:
           description: Berhasil diajukan pembatalan (Status -> MEMBATALKAN)

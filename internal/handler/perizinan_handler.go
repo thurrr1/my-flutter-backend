@@ -275,6 +275,11 @@ func (h *PerizinanHandler) ProcessApproval(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Status perizinan berhasil diperbarui"})
 }
 
+// CancelRequest struct untuk menangkap body JSON
+type CancelRequest struct {
+	Alasan string `json:"alasan"`
+}
+
 // CancelIzin: Pegawai mengajukan pembatalan izin/cuti yang sudah disetujui
 func (h *PerizinanHandler) CancelIzin(c *fiber.Ctx) error {
 	id, err := strconv.Atoi(c.Params("id"))
@@ -283,6 +288,16 @@ func (h *PerizinanHandler) CancelIzin(c *fiber.Ctx) error {
 	}
 
 	asnID := uint(c.Locals("user_id").(float64))
+
+	// Parse Body untuk alasan pembatalan
+	var req CancelRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format data salah"})
+	}
+
+	if req.Alasan == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Alasan pembatalan wajib diisi"})
+	}
 
 	// 1. Ambil data izin
 	izin, err := h.repo.GetByID(uint(id))
@@ -300,8 +315,10 @@ func (h *PerizinanHandler) CancelIzin(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Hanya izin yang sudah disetujui yang dapat dibatalkan"})
 	}
 
-	// 4. Update Status menjadi "MEMBATALKAN" (Menunggu Approval Atasan)
+	// 4. Update Status menjadi "MEMBATALKAN" dan Simpan Alasan
 	izin.Status = "MEMBATALKAN"
+	izin.Alasan = req.Alasan
+
 	if err := h.repo.Update(izin); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengajukan pembatalan"})
 	}
