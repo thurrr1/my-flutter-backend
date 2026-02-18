@@ -54,7 +54,7 @@ func (r *jadwalRepository) GetByDate(date string, orgID uint, search string) ([]
 	// Join dengan ASN untuk filter organisasi dan Preload data yang dibutuhkan
 	query := r.db.Preload("Shift").Preload("ASN").
 		Joins("JOIN asns ON asns.id = jadwals.asn_id").
-		Where("jadwals.tanggal = ? AND asns.organisasi_id = ?", date, orgID)
+		Where("jadwals.tanggal = ? AND asns.organisasi_id = ?", date, orgID).Order("role_id asc").Order("nama asc")
 
 	if search != "" {
 		searchPattern := "%" + search + "%"
@@ -67,7 +67,7 @@ func (r *jadwalRepository) GetByDate(date string, orgID uint, search string) ([]
 
 func (r *jadwalRepository) GetByID(id uint) (*model.Jadwal, error) {
 	var jadwal model.Jadwal
-	err := r.db.First(&jadwal, id).Error
+	err := r.db.Preload("ASN").Preload("Shift").First(&jadwal, id).Error
 	return &jadwal, err
 }
 
